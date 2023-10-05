@@ -24,41 +24,32 @@
 */
 
 //-----------------------------------------------------------------------------
-- (id)init
+- (instancetype)initWithDataController:(MVDataController *)dc rootNode:(MVNode *)node
 {
-  NSAssert(NO, @"plain init is not allowed");
-  return nil;
-}
-
-//-----------------------------------------------------------------------------
-- (id)initWithDataController:(MVDataController *)dc rootNode:(MVNode *)node
-{
-  if (self = [super init]) 
-  {
-    dataController = dc;
-    rootNode = node;
-    imageOffset = node.dataRange.location;
-    imageSize = node.dataRange.length;
-    backgroundThread = [[NSThread alloc] initWithTarget:self selector:@selector(doBackgroundTasks) object:nil];
+    if (self = [super init]) {
+        dataController = dc;
+        rootNode = node;
+        imageOffset = node.dataRange.location;
+        imageSize = node.dataRange.length;
+        backgroundThread = [[NSThread alloc] initWithTarget:self selector:@selector(doBackgroundTasks) object:nil];
     
-    const char *tmp = [[MVDocument temporaryDirectory] UTF8String];
-    char *swapFilePath = strdup(tmp);
-    if (mktemp(swapFilePath) == NULL)
-    {
-      NSLog(@"mktemp failed!");
-      free(swapFilePath);
-      return NO;
-    }
+        const char *tmp = [[MVDocument temporaryDirectory] UTF8String];
+        char *swapFilePath = strdup(tmp);
+        if (mkstemp(swapFilePath) == -1) {
+            NSLog(@"mkstemp failed!");
+            free(swapFilePath);
+            return nil;
+        }
       
-    NSString *swapPath = [NSString stringWithFormat:@"%s.%@", swapFilePath, [[dataController fileName] lastPathComponent]];
-    free(swapFilePath);
-    archiver = [MVArchiver archiverWithPath:swapPath];
-  }
-  return self;
+        NSString *swapPath = [NSString stringWithFormat:@"%s.%@", swapFilePath, [[dataController fileName] lastPathComponent]];
+        free(swapFilePath);
+        archiver = [MVArchiver archiverWithPath:swapPath];
+    }
+    return self;
 }
 
 //-----------------------------------------------------------------------------
-- (void const *)imageAt:(uint32_t)location
+- (void const *)imageAt:(uint64_t)location
 {
   auto p = (uint8_t const *)[dataController.realData bytes];
   return p ? p + location : NULL;
@@ -122,8 +113,8 @@
 //-----------------------------------------------------------------------------
 - (MVNode *)createDataNode:(MVNode *)parent
                    caption:(NSString *)caption
-                  location:(uint32_t)location
-                    length:(uint32_t)length
+                  location:(uint64_t)location
+                    length:(uint64_t)length
 {
   MVNode * node = [parent insertChild:caption location:location length:length];
   return node;

@@ -41,7 +41,7 @@ struct MVNodeSaver;
 @end
 
 //----------------------------------------------------------------------------
-@interface MVColoumns : NSObject
+@interface MVColumns : NSObject
 {
   NSString *            offsetStr;
   NSString *            dataStr;
@@ -54,29 +54,29 @@ struct MVNodeSaver;
 @property (nonatomic)   NSString * descriptionStr;
 @property (nonatomic)   NSString * valueStr;
 
-+(MVColoumns *) coloumnsWithData:(NSString *)col0 :(NSString *)col1 :(NSString *)col2 :(NSString *)col3;
++(MVColumns *) columnsWithData:(NSString *)col0 :(NSString *)col1 :(NSString *)col2 :(NSString *)col3;
 
 @end
 
 //----------------------------------------------------------------------------
 @interface MVRow : NSObject <MVSerializing>
 {
-  MVColoumns *          coloumns;
+  MVColumns *          columns;
   NSDictionary *        attributes;
-  uint32_t              offset;           // for sorting if necessary
-  uint32_t              coloumnsOffset;   // offset of coloumns
-  uint32_t              attributesOffset; // offset of attribues
+  uint64_t              offset;             // for sorting if necessary
+  off_t                 columnsOffset;      // offset of columns
+  off_t                 attributesOffset;   // offset of attribues
   BOOL                  deleted;
-  BOOL                  dirty;            // eg. attributes has changed
+  BOOL                  dirty;              // eg. attributes has changed
 }
 
 @property (nonatomic)   NSDictionary * attributes;
-@property (nonatomic)   MVColoumns * coloumns;
-@property (nonatomic)   uint32_t offset;
+@property (nonatomic)   MVColumns * columns;
+@property (nonatomic)   uint64_t offset;
 @property (nonatomic)   BOOL deleted;
 @property (nonatomic)   BOOL dirty;
 
--(NSString *)coloumnAtIndex:(NSUInteger)index;
+-(NSString *)columnAtIndex:(NSUInteger)index;
 
 @end
 
@@ -99,7 +99,7 @@ struct MVNodeSaver;
 
 - (void)                popRow;
 - (void)                appendRow:(id)col0 :(id)col1 :(id)col2 :(id)col3;
-- (void)                insertRowWithOffset:(uint32_t)offset :(id)col0 :(id)col1 :(id)col2 :(id)col3;
+- (void)                insertRowWithOffset:(uint64_t)offset :(id)col0 :(id)col1 :(id)col2 :(id)col3;
 - (void)                updateCellContentTo:(id)object atRow:(NSUInteger)rowIndex andCol:(NSUInteger)colIndex;
 
 - (NSUInteger)          rowCount;
@@ -118,7 +118,7 @@ struct MVNodeSaver;
   NSRange               dataRange;
   MVTable *             details;
   NSMutableDictionary * userInfo;
-  uint32_t              detailsOffset;
+  off_t                 detailsOffset;
 }
 
 @property (nonatomic)                   NSString *            caption;
@@ -126,12 +126,12 @@ struct MVNodeSaver;
 @property (nonatomic)                   NSRange               dataRange;
 @property (nonatomic)                   MVTable *             details;
 @property (nonatomic)                   NSMutableDictionary * userInfo;
-@property (nonatomic)                   uint32_t              detailsOffset;
+@property (nonatomic)                   off_t              detailsOffset;
 
 - (NSUInteger)          numberOfChildren;
 - (MVNode *)            childAtIndex:(NSUInteger)n;
-- (MVNode *)            insertChild:(NSString *)_caption location:(uint32_t)location length:(uint32_t)length;
-- (MVNode *)            insertChildWithDetails:(NSString *)_caption location:(uint32_t)location length:(uint32_t)length saver:(MVNodeSaver &)saver;
+- (MVNode *)            insertChild:(NSString *)_caption location:(uint64_t)location length:(uint64_t)length;
+- (MVNode *)            insertChildWithDetails:(NSString *)_caption location:(uint64_t)location length:(uint64_t)length saver:(MVNodeSaver &)saver;
 - (MVNode *)            findNodeByUserInfo:(NSDictionary *)uinfo;
 - (void)                openDetails;  // open swap file for reading details on demand
 - (void)                closeDetails; // close swap file
@@ -165,7 +165,7 @@ struct MVNodeSaver;
 -(NSString *)           getMachine:(cpu_type_t)cputype;
 -(NSString *)           getARMCpu:(cpu_subtype_t)cpusubtype;
 
-- (void)                createLayouts:(MVNode *)parent location:(uint32_t)location length:(uint32_t)length;
+- (void)                createLayouts:(MVNode *)parent location:(uint64_t)location length:(uint64_t)length;
 - (void)                updateTreeView: (MVNode *)node;
 - (void)                updateTableView;
 - (void)                updateStatus: (NSString *)status;

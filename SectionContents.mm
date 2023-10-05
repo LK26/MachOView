@@ -16,7 +16,8 @@
 #import "CRTFootPrints.h"
 #import "ReadWrite.h"
 #import "DataController.h"
-#import "capstone.h"
+#import "capstone/include/capstone/capstone.h"
+#import <mach-o/loader.h>
 
 #define TAB_WIDTH 10
 
@@ -28,8 +29,8 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (MVNode *)createPointersNode:(MVNode *)parent
                        caption:(NSString *)caption
-                      location:(uint32_t)location
-                        length:(uint32_t)length
+                      location:(uint64_t)location
+                        length:(uint64_t)length
 {
   MVNodeSaver nodeSaver;
   MVNode * node = [parent insertChildWithDetails:caption location:location length:length saver:nodeSaver]; 
@@ -61,8 +62,8 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (MVNode *)createPointers64Node:(MVNode *)parent
                          caption:(NSString *)caption
-                        location:(uint32_t)location
-                          length:(uint32_t)length
+                        location:(uint64_t)location
+                          length:(uint64_t)length
 {
   MVNodeSaver nodeSaver;
   MVNode * node = [parent insertChildWithDetails:caption location:location length:length saver:nodeSaver]; 
@@ -74,8 +75,8 @@ using namespace std;
   {
     uint64_t ptr = [dataController read_uint64:range lastReadHex:&lastReadHex];
     NSString * symbolName = [NSString stringWithFormat:@"%@->%@",
-                             [self findSymbolAtRVA64:[self fileOffsetToRVA64:range.location]],
-                             [self findSymbolAtRVA64:ptr]];
+                             [self findSymbolAtRVA:[self fileOffsetToRVA:range.location]],
+                             [self findSymbolAtRVA:ptr]];
     
     [node.details appendRow:[NSString stringWithFormat:@"%.8lX", range.location]
                            :lastReadHex
@@ -85,7 +86,7 @@ using namespace std;
     [node.details setAttributes:MVMetaDataAttributeName,symbolName,nil];
     
     [symbolNames setObject:symbolName 
-                    forKey:[NSNumber numberWithUnsignedLongLong:[self fileOffsetToRVA64:range.location]]];
+                    forKey:[NSNumber numberWithUnsignedLongLong:[self fileOffsetToRVA:range.location]]];
   }
   
   return node;
@@ -94,8 +95,8 @@ using namespace std;
 //-----------------------------------------------------------------------------
 -(MVNode *)createCStringsNode:(MVNode *)parent
                       caption:(NSString *)caption
-                     location:(uint32_t)location
-                       length:(uint32_t)length
+                     location:(uint64_t)location
+                       length:(uint64_t)length
 {
   MVNodeSaver nodeSaver;
   MVNode * node = [parent insertChildWithDetails:caption location:location length:length saver:nodeSaver]; 
@@ -114,19 +115,10 @@ using namespace std;
     
     [node.details setAttributes:MVMetaDataAttributeName,symbolName,nil];
     
-    // fill in lookup table with C Strings
-    if ([self is64bit] == NO)
-    {
-      uint32_t rva = [self fileOffsetToRVA:range.location];
-      [symbolNames setObject:[NSString stringWithFormat:@"0x%X:\"%@\"", rva, symbolName]
-                      forKey:[NSNumber numberWithUnsignedLong:rva]];
-    }
-    else
-    {
-      uint64_t rva64 = [self fileOffsetToRVA64:range.location];
-      [symbolNames setObject:[NSString stringWithFormat:@"0x%qX:\"%@\"", rva64, symbolName]
-                      forKey:[NSNumber numberWithUnsignedLongLong:rva64]];
-    }
+      // fill in lookup table with C Strings
+      uint64_t rva = [self fileOffsetToRVA:range.location];
+      [symbolNames setObject:[NSString stringWithFormat:@"0x%qX:\"%@\"", rva, symbolName]
+                      forKey:[NSNumber numberWithUnsignedLongLong:rva]];
   }
   
   return node;
@@ -135,8 +127,8 @@ using namespace std;
 //-----------------------------------------------------------------------------
 -(MVNode *)createLiteralsNode:(MVNode *)parent
                       caption:(NSString *)caption
-                     location:(uint32_t)location
-                       length:(uint32_t)length
+                     location:(uint64_t)location
+                       length:(uint64_t)length
                        stride:(uint32_t)stride
 {
   MVNodeSaver nodeSaver;
@@ -165,11 +157,15 @@ using namespace std;
       } break;
         
       default:
-      case sizeof(long double): 
-      {
-        long double num = *(long double *)[data bytes]; 
-        literalStr = [NSString stringWithFormat:@"%.16Lg", num];
-      } break;
+#if !defined (__arm64__)
+        // it's 8 for both cases in arm64
+        case sizeof(long double):
+#endif
+        {
+          long double num = *(long double *)[data bytes];
+          literalStr = [NSString stringWithFormat:@"%.16Lg", num];
+          break;
+        }
     }
     
     [node.details appendRow:[NSString stringWithFormat:@"%.8lX", range.location]
@@ -177,19 +173,10 @@ using namespace std;
                            :@"Floating Point Number"
                            :literalStr];
     
-    // fill in lookup table with string literals
-    if ([self is64bit] == NO)
-    {
-      uint32_t rva = [self fileOffsetToRVA:range.location];
-      [symbolNames setObject:[NSString stringWithFormat:@"0x%X:%@f", rva, literalStr]
-                      forKey:[NSNumber numberWithUnsignedLong:rva]]; 
-    }
-    else
-    {
-      uint64_t rva64 = [self fileOffsetToRVA64:range.location];
-      [symbolNames setObject:[NSString stringWithFormat:@"0x%qX:%@f", rva64, literalStr]
-                      forKey:[NSNumber numberWithUnsignedLongLong:rva64]]; 
-    }
+      // fill in lookup table with string literals
+      uint64_t rva = [self fileOffsetToRVA:range.location];
+      [symbolNames setObject:[NSString stringWithFormat:@"0x%qX:%@f", rva, literalStr]
+                      forKey:[NSNumber numberWithUnsignedLongLong:rva]];
   }
   return node;
   
@@ -198,8 +185,8 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (MVNode *)createIndPointersNode:(MVNode *)parent
                           caption:(NSString *)caption
-                         location:(uint32_t)location
-                           length:(uint32_t)length
+                         location:(uint64_t)location
+                           length:(uint64_t)length
 {
   MVNodeSaver nodeSaver;
   MVNode * node = [parent insertChildWithDetails:caption location:location length:length saver:nodeSaver]; 
@@ -225,8 +212,8 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (MVNode *)createIndPointers64Node:(MVNode *)parent
                             caption:(NSString *)caption
-                           location:(uint32_t)location
-                             length:(uint32_t)length
+                           location:(uint64_t)location
+                             length:(uint64_t)length
 {
   MVNodeSaver nodeSaver;
   MVNode * node = [parent insertChildWithDetails:caption location:location length:length saver:nodeSaver]; 
@@ -237,7 +224,7 @@ using namespace std;
   while (NSMaxRange(range) < location + length)
   {
     [dataController read_uint64:range lastReadHex:&lastReadHex];
-    NSString * symbolName = [self findSymbolAtRVA64:[self fileOffsetToRVA64:range.location]];
+    NSString * symbolName = [self findSymbolAtRVA:[self fileOffsetToRVA:range.location]];
     [node.details appendRow:[NSString stringWithFormat:@"%.8lX", range.location]
                            :lastReadHex
                            :@"Indirect Pointer"
@@ -252,8 +239,8 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (MVNode *)createIndStubsNode:(MVNode *)parent
                        caption:(NSString *)caption
-                      location:(uint32_t)location
-                        length:(uint32_t)length
+                      location:(uint64_t)location
+                        length:(uint64_t)length
                         stride:(uint32_t)stride
 {
   MVNodeSaver nodeSaver;
@@ -280,8 +267,8 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (MVNode *)createIndStubs64Node:(MVNode *)parent
                          caption:(NSString *)caption
-                        location:(uint32_t)location
-                          length:(uint32_t)length
+                        location:(uint64_t)location
+                          length:(uint64_t)length
                           stride:(uint32_t)stride
 {
   MVNodeSaver nodeSaver;
@@ -293,7 +280,7 @@ using namespace std;
   while (NSMaxRange(range) < location + length)
   {
     [dataController read_bytes:range length:stride lastReadHex:&lastReadHex];
-    NSString * symbolName = [self findSymbolAtRVA64:[self fileOffsetToRVA64:range.location]];
+    NSString * symbolName = [self findSymbolAtRVA:[self fileOffsetToRVA:range.location]];
     [node.details appendRow:[NSString stringWithFormat:@"%.8lX", range.location]
                            :lastReadHex
                            :@"Indirect Stub"
@@ -432,8 +419,8 @@ static AsmFootPrint const fastStubHelperHelperARM =
 //-----------------------------------------------------------------------------
 - (MVNode *)createStubHelperNode:(MVNode *)parent
                          caption:(NSString *)caption
-                        location:(uint32_t)location
-                          length:(uint32_t)length
+                        location:(uint64_t)location
+                          length:(uint64_t)length
 {
   MVNodeSaver nodeSaver;
   MVNode * node = [parent insertChildWithDetails:caption location:location length:length saver:nodeSaver]; 
@@ -442,7 +429,7 @@ static AsmFootPrint const fastStubHelperHelperARM =
   NSString * lastReadHex;
   
   NSData * data;
-  uint32_t address;
+  uint64_t address;
 
   if ([self matchAsmAtOffset:range.location 
                 asmFootPrint:hybridStubHelperHelperX86 
@@ -544,13 +531,13 @@ static AsmFootPrint const fastStubHelperHelperARM =
 //-----------------------------------------------------------------------------
 - (MVNode *)createTextNode:(MVNode *)parent
                    caption:(NSString *)caption
-                  location:(uint32_t)location
-                    length:(uint32_t)length
-                    reloff:(uint32_t)reloff
+                  location:(uint64_t)location
+                    length:(uint64_t)length
+                    reloff:(uint64_t)reloff
                     nreloc:(uint32_t)nreloc
-                 extreloff:(uint32_t)extreloff
+                 extreloff:(uint64_t)extreloff
                    nextrel:(uint32_t)nextrel
-                 locreloff:(uint32_t)locreloff
+                 locreloff:(uint64_t)locreloff
                    nlocrel:(uint32_t)nlocrel
 {
     MVNodeSaver nodeSaver;
@@ -570,16 +557,16 @@ static AsmFootPrint const fastStubHelperHelperARM =
     MATCH_STRUCT(mach_header,imageOffset);
     
     char *                    ot_sect = (char*)[dataController.fileData bytes] + location;
-    uint32_t                  ot_left = length;
-    uint64_t                  ot_addr = ([self is64bit] == NO ? [self fileOffsetToRVA:location] : [self fileOffsetToRVA64:location]);
+    uint64_t                  ot_left = length;
+    uint64_t                  ot_addr = [self fileOffsetToRVA:location];
     
     csh cs_handle = 0;
     cs_insn *cs_insn = NULL;
     size_t disasm_count = 0;
     cs_err cserr;
     /* open capstone */
-    cs_arch target_arch;
-    cs_mode target_mode;
+    cs_arch target_arch = CS_ARCH_ALL;
+    cs_mode target_mode = CS_MODE_LITTLE_ENDIAN;
     switch (mach_header->cputype)
     {
         case CPU_TYPE_I386:
@@ -596,11 +583,11 @@ static AsmFootPrint const fastStubHelperHelperARM =
             break;
         case CPU_TYPE_ARM64:
             target_arch = CS_ARCH_ARM64;
-            target_mode = CS_MODE_ARM;
+            target_mode = CS_MODE_LITTLE_ENDIAN;
             break;
         default:
-            NSLog(@"NO CPU FOUND!");
-            break;
+            NSLog(@"No CPU found to disassemble!");
+            return node;
     }
     
     if ( (cserr = cs_open(target_arch, target_mode, &cs_handle)) != CS_ERR_OK )
@@ -637,7 +624,7 @@ static AsmFootPrint const fastStubHelperHelperARM =
     /* XXX: parse data in code section to partially solve this */
     disasm_count = cs_disasm(cs_handle, (const uint8_t *)ot_sect, ot_left, ot_addr, 0, &cs_insn);
     NSLog(@"Disassembled %lu instructions.", disasm_count);
-    uint32_t fileOffset = ([self is64bit] == NO ? [self RVAToFileOffset:(uint32_t)ot_addr] : [self RVA64ToFileOffset:ot_addr]);
+    uint64_t fileOffset = [self RVAToFileOffset:ot_addr];
     for (size_t i = 0; i < disasm_count; i++)
     {
         /* XXX: replace this bytes retrieval with Capstone internal data since it already contains this info */
@@ -646,7 +633,7 @@ static AsmFootPrint const fastStubHelperHelperARM =
         [dataController read_bytes:range length:cs_insn[i].size lastReadHex:&lastReadHex];
         /* format the disassembly output using Capstone strings */
         NSString *asm_string = [NSString stringWithFormat:@"%-10s\t%s", cs_insn[i].mnemonic, cs_insn[i].op_str];
-        [node.details appendRow:[NSString stringWithFormat:@"%.8X", fileOffset]
+        [node.details appendRow:[NSString stringWithFormat:@"%.8qX", fileOffset]
                                :lastReadHex
                                :asm_string
                                :@""];

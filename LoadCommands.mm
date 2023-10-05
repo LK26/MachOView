@@ -15,6 +15,10 @@
 #import "LoadCommands.h"
 #import "ReadWrite.h"
 #import "DataController.h"
+#import <mach-o/loader.h>
+#import <mach-o/nlist.h>
+#include "thread_status.h"
+#include "thread_status_arm.h"
 
 using namespace std;
 
@@ -24,63 +28,70 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (NSString *)getNameForCommand:(uint32_t)cmd
 {
-  switch(cmd)
-  {
-    default:                      return @"???";
-    case LC_SEGMENT:              return @"LC_SEGMENT";             
-    case LC_SYMTAB:               return @"LC_SYMTAB";               
-    case LC_SYMSEG:               return @"LC_SYMSEG";              
-    case LC_THREAD:               return @"LC_THREAD";              
-    case LC_UNIXTHREAD:           return @"LC_UNIXTHREAD";          
-    case LC_LOADFVMLIB:           return @"LC_LOADFVMLIB";          
-    case LC_IDFVMLIB:             return @"LC_IDFVMLIB";            
-    case LC_IDENT:                return @"LC_IDENT";               
-    case LC_FVMFILE:              return @"LC_FVMFILE";             
-    case LC_PREPAGE:              return @"LC_PREPAGE";             
-    case LC_DYSYMTAB:             return @"LC_DYSYMTAB";            
-    case LC_LOAD_DYLIB:           return @"LC_LOAD_DYLIB";          
-    case LC_ID_DYLIB:             return @"LC_ID_DYLIB";            
-    case LC_LOAD_DYLINKER:        return @"LC_LOAD_DYLINKER";       
-    case LC_ID_DYLINKER:          return @"LC_ID_DYLINKER";         
-    case LC_PREBOUND_DYLIB:       return @"LC_PREBOUND_DYLIB";      
-    case LC_ROUTINES:             return @"LC_ROUTINES";            
-    case LC_SUB_FRAMEWORK:        return @"LC_SUB_FRAMEWORK";       
-    case LC_SUB_UMBRELLA:         return @"LC_SUB_UMBRELLA";        
-    case LC_SUB_CLIENT:           return @"LC_SUB_CLIENT";          
-    case LC_SUB_LIBRARY:          return @"LC_SUB_LIBRARY";         
-    case LC_TWOLEVEL_HINTS:       return @"LC_TWOLEVEL_HINTS";      
-    case LC_PREBIND_CKSUM:        return @"LC_PREBIND_CKSUM";       
-    case LC_LOAD_WEAK_DYLIB:      return @"LC_LOAD_WEAK_DYLIB";     
-    case LC_SEGMENT_64:           return @"LC_SEGMENT_64";          
-    case LC_ROUTINES_64:          return @"LC_ROUTINES_64";         
-    case LC_UUID:                 return @"LC_UUID";                
-    case LC_RPATH:                return @"LC_RPATH";               
-    case LC_CODE_SIGNATURE:       return @"LC_CODE_SIGNATURE";      
-    case LC_SEGMENT_SPLIT_INFO:   return @"LC_SEGMENT_SPLIT_INFO";  
-    case LC_REEXPORT_DYLIB:       return @"LC_REEXPORT_DYLIB";      
-    case LC_LAZY_LOAD_DYLIB:      return @"LC_LAZY_LOAD_DYLIB";     
-    case LC_ENCRYPTION_INFO:      return @"LC_ENCRYPTION_INFO";     
-    case LC_ENCRYPTION_INFO_64:   return @"LC_ENCRYPTION_INFO_64";
-    case LC_DYLD_INFO:            return @"LC_DYLD_INFO";           
-    case LC_DYLD_INFO_ONLY:       return @"LC_DYLD_INFO_ONLY";      
-    case LC_LOAD_UPWARD_DYLIB:    return @"LC_LOAD_UPWARD_DYLIB";
-    case LC_VERSION_MIN_MACOSX:   return @"LC_VERSION_MIN_MACOSX";
-    case LC_VERSION_MIN_IPHONEOS: return @"LC_VERSION_MIN_IPHONEOS";
-    case LC_FUNCTION_STARTS:      return @"LC_FUNCTION_STARTS";
-    case LC_DYLD_ENVIRONMENT:     return @"LC_DYLD_ENVIRONMENT";
-    case LC_MAIN:                 return @"LC_MAIN";
-    case LC_DATA_IN_CODE:         return @"LC_DATA_IN_CODE";
-    case LC_SOURCE_VERSION:       return @"LC_SOURCE_VERSION";
-    case LC_DYLIB_CODE_SIGN_DRS:  return @"LC_DYLIB_CODE_SIGN_DRS";
-    case LC_LINKER_OPTION:        return @"LC_LINKER_OPTION";
-    case LC_LINKER_OPTIMIZATION_HINT: return @"LC_LINKER_OPTIMIZATION_HINT";
-  }
+    switch(cmd)
+    {
+        default:                      return @"???";
+        case LC_SEGMENT:              return @"LC_SEGMENT";
+        case LC_SYMTAB:               return @"LC_SYMTAB";
+        case LC_SYMSEG:               return @"LC_SYMSEG";
+        case LC_THREAD:               return @"LC_THREAD";
+        case LC_UNIXTHREAD:           return @"LC_UNIXTHREAD";
+        case LC_LOADFVMLIB:           return @"LC_LOADFVMLIB";
+        case LC_IDFVMLIB:             return @"LC_IDFVMLIB";
+        case LC_IDENT:                return @"LC_IDENT";
+        case LC_FVMFILE:              return @"LC_FVMFILE";
+        case LC_PREPAGE:              return @"LC_PREPAGE";
+        case LC_DYSYMTAB:             return @"LC_DYSYMTAB";
+        case LC_LOAD_DYLIB:           return @"LC_LOAD_DYLIB";
+        case LC_ID_DYLIB:             return @"LC_ID_DYLIB";
+        case LC_LOAD_DYLINKER:        return @"LC_LOAD_DYLINKER";
+        case LC_ID_DYLINKER:          return @"LC_ID_DYLINKER";
+        case LC_PREBOUND_DYLIB:       return @"LC_PREBOUND_DYLIB";
+        case LC_ROUTINES:             return @"LC_ROUTINES";
+        case LC_SUB_FRAMEWORK:        return @"LC_SUB_FRAMEWORK";
+        case LC_SUB_UMBRELLA:         return @"LC_SUB_UMBRELLA";
+        case LC_SUB_CLIENT:           return @"LC_SUB_CLIENT";
+        case LC_SUB_LIBRARY:          return @"LC_SUB_LIBRARY";
+        case LC_TWOLEVEL_HINTS:       return @"LC_TWOLEVEL_HINTS";
+        case LC_PREBIND_CKSUM:        return @"LC_PREBIND_CKSUM";
+        case LC_LOAD_WEAK_DYLIB:      return @"LC_LOAD_WEAK_DYLIB";
+        case LC_SEGMENT_64:           return @"LC_SEGMENT_64";
+        case LC_ROUTINES_64:          return @"LC_ROUTINES_64";
+        case LC_UUID:                 return @"LC_UUID";
+        case LC_RPATH:                return @"LC_RPATH";
+        case LC_CODE_SIGNATURE:       return @"LC_CODE_SIGNATURE";
+        case LC_SEGMENT_SPLIT_INFO:   return @"LC_SEGMENT_SPLIT_INFO";
+        case LC_REEXPORT_DYLIB:       return @"LC_REEXPORT_DYLIB";
+        case LC_LAZY_LOAD_DYLIB:      return @"LC_LAZY_LOAD_DYLIB";
+        case LC_ENCRYPTION_INFO:      return @"LC_ENCRYPTION_INFO";
+        case LC_DYLD_INFO:            return @"LC_DYLD_INFO";
+        case LC_DYLD_INFO_ONLY:       return @"LC_DYLD_INFO_ONLY";
+        case LC_LOAD_UPWARD_DYLIB:    return @"LC_LOAD_UPWARD_DYLIB";
+        case LC_VERSION_MIN_MACOSX:   return @"LC_VERSION_MIN_MACOSX";
+        case LC_VERSION_MIN_IPHONEOS: return @"LC_VERSION_MIN_IPHONEOS";
+        case LC_FUNCTION_STARTS:      return @"LC_FUNCTION_STARTS";
+        case LC_DYLD_ENVIRONMENT:     return @"LC_DYLD_ENVIRONMENT";
+        case LC_MAIN:                 return @"LC_MAIN";
+        case LC_DATA_IN_CODE:         return @"LC_DATA_IN_CODE";
+        case LC_SOURCE_VERSION:       return @"LC_SOURCE_VERSION";
+        case LC_DYLIB_CODE_SIGN_DRS:  return @"LC_DYLIB_CODE_SIGN_DRS";
+        case LC_ENCRYPTION_INFO_64:   return @"LC_ENCRYPTION_INFO_64";
+        case LC_LINKER_OPTION:        return @"LC_LINKER_OPTION";
+        case LC_LINKER_OPTIMIZATION_HINT: return @"LC_LINKER_OPTIMIZATION_HINT";
+        case LC_VERSION_MIN_TVOS:     return @"LC_VERSION_MIN_TVOS";
+        case LC_VERSION_MIN_WATCHOS:  return @"LC_VERSION_MIN_WATCHOS";
+        case LC_NOTE:                 return @"LC_NOTE";
+        case LC_BUILD_VERSION:        return @"LC_BUILD_VERSION";
+        case LC_DYLD_EXPORTS_TRIE:    return @"LC_DYLD_EXPORTS_TRIE";
+        case LC_DYLD_CHAINED_FIXUPS:  return @"LC_DYLD_CHAINED_FIXUPS";
+        case LC_FILESET_ENTRY:        return @"LC_FILESET_ENTRY";
+    }
 }
 
 //-----------------------------------------------------------------------------
 - (MVNode *)createLCSegmentNode:(MVNode *)parent
                       caption:(NSString *)caption
-                     location:(uint32_t)location
+                     location:(uint64_t)location
               segment_command:(struct segment_command const *)segment_command
 {
   MVNodeSaver nodeSaver;
@@ -170,18 +181,28 @@ using namespace std;
                          :@"Flags"
                          :@""];
   
-  if (segment_command->flags & SG_HIGHVM)              [node.details appendRow:@"":@"":@"00000001":@"SG_HIGHVM"];
-  if (segment_command->flags & SG_FVMLIB)              [node.details appendRow:@"":@"":@"00000002":@"SG_FVMLIB"];
-  if (segment_command->flags & SG_NORELOC)             [node.details appendRow:@"":@"":@"00000004":@"SG_NORELOC"];
-  if (segment_command->flags & SG_PROTECTED_VERSION_1) [node.details appendRow:@"":@"":@"00000008":@"SG_PROTECTED_VERSION_1"];
-  
+    if (segment_command->flags & SG_HIGHVM) {
+        [node.details appendRow:@"":@"":@"00000001":@"SG_HIGHVM"];
+    }
+    if (segment_command->flags & SG_FVMLIB) {
+        [node.details appendRow:@"":@"":@"00000002":@"SG_FVMLIB"];
+    }
+    if (segment_command->flags & SG_NORELOC) {
+        [node.details appendRow:@"":@"":@"00000004":@"SG_NORELOC"];
+    }
+    if (segment_command->flags & SG_PROTECTED_VERSION_1) {
+        [node.details appendRow:@"":@"":@"00000008":@"SG_PROTECTED_VERSION_1"];
+    }
+    if (segment_command->flags & SG_READ_ONLY) {
+        [node.details appendRow:@"" :@"" :@"00000010" :@"SG_READ_ONLY"];
+    }
   return node;
 }
 
 //-----------------------------------------------------------------------------
 - (MVNode *)createSectionNode:(MVNode *)parent
                     caption:(NSString *)caption
-                   location:(uint32_t)location
+                   location:(uint64_t)location
                     section:(struct section const *)section
 {
   MVNodeSaver nodeSaver;
@@ -244,31 +265,32 @@ using namespace std;
                          :@"Flags"
                          :@""];
   
-  switch (section->flags & SECTION_TYPE)
-  {
-    case S_REGULAR:                             [node.details appendRow:@"":@"":@"00000000":@"S_REGULAR"]; break;
-    case S_ZEROFILL:                            [node.details appendRow:@"":@"":@"00000001":@"S_ZEROFILL"]; break;
-    case S_CSTRING_LITERALS:                    [node.details appendRow:@"":@"":@"00000002":@"S_CSTRING_LITERALS"]; break;
-    case S_4BYTE_LITERALS:                      [node.details appendRow:@"":@"":@"00000003":@"S_4BYTE_LITERALS"]; break;
-    case S_8BYTE_LITERALS:                      [node.details appendRow:@"":@"":@"00000004":@"S_8BYTE_LITERALS"]; break;
-    case S_LITERAL_POINTERS:                    [node.details appendRow:@"":@"":@"00000005":@"S_LITERAL_POINTERS"]; break;
-    case S_NON_LAZY_SYMBOL_POINTERS:            [node.details appendRow:@"":@"":@"00000006":@"S_NON_LAZY_SYMBOL_POINTERS"]; break;
-    case S_LAZY_SYMBOL_POINTERS:                [node.details appendRow:@"":@"":@"00000007":@"S_LAZY_SYMBOL_POINTERS"]; break;
-    case S_SYMBOL_STUBS:                        [node.details appendRow:@"":@"":@"00000008":@"S_SYMBOL_STUBS"]; break;
-    case S_MOD_INIT_FUNC_POINTERS:              [node.details appendRow:@"":@"":@"00000009":@"S_MOD_INIT_FUNC_POINTERS"]; break;
-    case S_MOD_TERM_FUNC_POINTERS:              [node.details appendRow:@"":@"":@"0000000A":@"S_MOD_TERM_FUNC_POINTERS"]; break;
-    case S_COALESCED:                           [node.details appendRow:@"":@"":@"0000000B":@"S_COALESCED"]; break;
-    case S_GB_ZEROFILL:                         [node.details appendRow:@"":@"":@"0000000C":@"S_GB_ZEROFILL"]; break;
-    case S_INTERPOSING:                         [node.details appendRow:@"":@"":@"0000000D":@"S_INTERPOSING"]; break;
-    case S_16BYTE_LITERALS:                     [node.details appendRow:@"":@"":@"0000000E":@"S_16BYTE_LITERALS"]; break;
-    case S_DTRACE_DOF:                          [node.details appendRow:@"":@"":@"0000000F":@"S_DTRACE_DOF"]; break;
-    case S_LAZY_DYLIB_SYMBOL_POINTERS:          [node.details appendRow:@"":@"":@"00000010":@"S_LAZY_DYLIB_SYMBOL_POINTERS"]; break;
-    case S_THREAD_LOCAL_REGULAR:                [node.details appendRow:@"":@"":@"00000011":@"S_THREAD_LOCAL_REGULAR"]; break;
-    case S_THREAD_LOCAL_ZEROFILL:               [node.details appendRow:@"":@"":@"00000012":@"S_THREAD_LOCAL_ZEROFILL"]; break;
-    case S_THREAD_LOCAL_VARIABLES:              [node.details appendRow:@"":@"":@"00000013":@"S_THREAD_LOCAL_VARIABLES"]; break;
-    case S_THREAD_LOCAL_VARIABLE_POINTERS:      [node.details appendRow:@"":@"":@"00000014":@"S_THREAD_LOCAL_VARIABLE_POINTERS"]; break;
-    case S_THREAD_LOCAL_INIT_FUNCTION_POINTERS: [node.details appendRow:@"":@"":@"00000015":@"S_THREAD_LOCAL_INIT_FUNCTION_POINTERS"]; break;
-  }
+    switch (section->flags & SECTION_TYPE)
+    {
+        case S_REGULAR:                             [node.details appendRow:@"":@"":@"00000000":@"S_REGULAR"]; break;
+        case S_ZEROFILL:                            [node.details appendRow:@"":@"":@"00000001":@"S_ZEROFILL"]; break;
+        case S_CSTRING_LITERALS:                    [node.details appendRow:@"":@"":@"00000002":@"S_CSTRING_LITERALS"]; break;
+        case S_4BYTE_LITERALS:                      [node.details appendRow:@"":@"":@"00000003":@"S_4BYTE_LITERALS"]; break;
+        case S_8BYTE_LITERALS:                      [node.details appendRow:@"":@"":@"00000004":@"S_8BYTE_LITERALS"]; break;
+        case S_LITERAL_POINTERS:                    [node.details appendRow:@"":@"":@"00000005":@"S_LITERAL_POINTERS"]; break;
+        case S_NON_LAZY_SYMBOL_POINTERS:            [node.details appendRow:@"":@"":@"00000006":@"S_NON_LAZY_SYMBOL_POINTERS"]; break;
+        case S_LAZY_SYMBOL_POINTERS:                [node.details appendRow:@"":@"":@"00000007":@"S_LAZY_SYMBOL_POINTERS"]; break;
+        case S_SYMBOL_STUBS:                        [node.details appendRow:@"":@"":@"00000008":@"S_SYMBOL_STUBS"]; break;
+        case S_MOD_INIT_FUNC_POINTERS:              [node.details appendRow:@"":@"":@"00000009":@"S_MOD_INIT_FUNC_POINTERS"]; break;
+        case S_MOD_TERM_FUNC_POINTERS:              [node.details appendRow:@"":@"":@"0000000A":@"S_MOD_TERM_FUNC_POINTERS"]; break;
+        case S_COALESCED:                           [node.details appendRow:@"":@"":@"0000000B":@"S_COALESCED"]; break;
+        case S_GB_ZEROFILL:                         [node.details appendRow:@"":@"":@"0000000C":@"S_GB_ZEROFILL"]; break;
+        case S_INTERPOSING:                         [node.details appendRow:@"":@"":@"0000000D":@"S_INTERPOSING"]; break;
+        case S_16BYTE_LITERALS:                     [node.details appendRow:@"":@"":@"0000000E":@"S_16BYTE_LITERALS"]; break;
+        case S_DTRACE_DOF:                          [node.details appendRow:@"":@"":@"0000000F":@"S_DTRACE_DOF"]; break;
+        case S_LAZY_DYLIB_SYMBOL_POINTERS:          [node.details appendRow:@"":@"":@"00000010":@"S_LAZY_DYLIB_SYMBOL_POINTERS"]; break;
+        case S_THREAD_LOCAL_REGULAR:                [node.details appendRow:@"":@"":@"00000011":@"S_THREAD_LOCAL_REGULAR"]; break;
+        case S_THREAD_LOCAL_ZEROFILL:               [node.details appendRow:@"":@"":@"00000012":@"S_THREAD_LOCAL_ZEROFILL"]; break;
+        case S_THREAD_LOCAL_VARIABLES:              [node.details appendRow:@"":@"":@"00000013":@"S_THREAD_LOCAL_VARIABLES"]; break;
+        case S_THREAD_LOCAL_VARIABLE_POINTERS:      [node.details appendRow:@"":@"":@"00000014":@"S_THREAD_LOCAL_VARIABLE_POINTERS"]; break;
+        case S_THREAD_LOCAL_INIT_FUNCTION_POINTERS: [node.details appendRow:@"":@"":@"00000015":@"S_THREAD_LOCAL_INIT_FUNCTION_POINTERS"]; break;
+        case S_INIT_FUNC_OFFSETS:                   [node.details appendRow:@"":@"":@"00000016":@"S_INIT_FUNC_OFFSETS"]; break;
+    }
   
   if (section->flags & S_ATTR_PURE_INSTRUCTIONS)   [node.details appendRow:@"":@"":@"80000000":@"S_ATTR_PURE_INSTRUCTIONS"];
   if (section->flags & S_ATTR_NO_TOC)              [node.details appendRow:@"":@"":@"40000000":@"S_ATTR_NO_TOC"];
@@ -301,7 +323,7 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (MVNode *)createLCSegment64Node:(MVNode *)parent
                         caption:(NSString *)caption
-                       location:(uint32_t)location
+                       location:(uint64_t)location
              segment_command_64:(struct segment_command_64 const *)segment_command_64
 {
   MVNodeSaver nodeSaver;
@@ -391,18 +413,29 @@ using namespace std;
                          :@"Flags"
                          :@""];
   
-  if (segment_command_64->flags & SG_HIGHVM)              [node.details appendRow:@"":@"":@"00000001":@"SG_HIGHVM"];
-  if (segment_command_64->flags & SG_FVMLIB)              [node.details appendRow:@"":@"":@"00000002":@"SG_FVMLIB"];
-  if (segment_command_64->flags & SG_NORELOC)             [node.details appendRow:@"":@"":@"00000004":@"SG_NORELOC"];
-  if (segment_command_64->flags & SG_PROTECTED_VERSION_1) [node.details appendRow:@"":@"":@"00000008":@"SG_PROTECTED_VERSION_1"];
-  
+    if (segment_command_64->flags & SG_HIGHVM) {
+        [node.details appendRow:@"":@"":@"00000001":@"SG_HIGHVM"];
+    }
+    if (segment_command_64->flags & SG_FVMLIB) {
+        [node.details appendRow:@"":@"":@"00000002":@"SG_FVMLIB"];
+    }
+    if (segment_command_64->flags & SG_NORELOC) {
+        [node.details appendRow:@"":@"":@"00000004":@"SG_NORELOC"];
+    }
+    if (segment_command_64->flags & SG_PROTECTED_VERSION_1) {
+        [node.details appendRow:@"":@"":@"00000008":@"SG_PROTECTED_VERSION_1"];
+    }
+    if (segment_command_64->flags & SG_READ_ONLY) {
+        [node.details appendRow:@"" :@"" :@"00000010" :@"SG_READ_ONLY"];
+    }
+
   return node;
 }
 
 //-----------------------------------------------------------------------------
 - (MVNode *)createSection64Node:(MVNode *)parent
                     caption:(NSString *)caption
-                   location:(uint32_t)location
+                   location:(uint64_t)location
                  section_64:(struct section_64 const *)section_64
 {
   MVNodeSaver nodeSaver;
@@ -465,31 +498,32 @@ using namespace std;
                          :@"Flags"
                          :@""];
   
-  switch (section_64->flags & SECTION_TYPE)
-  {
-    case S_REGULAR:                             [node.details appendRow:@"":@"":@"00000000":@"S_REGULAR"]; break;
-    case S_ZEROFILL:                            [node.details appendRow:@"":@"":@"00000001":@"S_ZEROFILL"]; break;
-    case S_CSTRING_LITERALS:                    [node.details appendRow:@"":@"":@"00000002":@"S_CSTRING_LITERALS"]; break;
-    case S_4BYTE_LITERALS:                      [node.details appendRow:@"":@"":@"00000003":@"S_4BYTE_LITERALS"]; break;
-    case S_8BYTE_LITERALS:                      [node.details appendRow:@"":@"":@"00000004":@"S_8BYTE_LITERALS"]; break;
-    case S_LITERAL_POINTERS:                    [node.details appendRow:@"":@"":@"00000005":@"S_LITERAL_POINTERS"]; break;
-    case S_NON_LAZY_SYMBOL_POINTERS:            [node.details appendRow:@"":@"":@"00000006":@"S_NON_LAZY_SYMBOL_POINTERS"]; break;
-    case S_LAZY_SYMBOL_POINTERS:                [node.details appendRow:@"":@"":@"00000007":@"S_LAZY_SYMBOL_POINTERS"]; break;
-    case S_SYMBOL_STUBS:                        [node.details appendRow:@"":@"":@"00000008":@"S_SYMBOL_STUBS"]; break;
-    case S_MOD_INIT_FUNC_POINTERS:              [node.details appendRow:@"":@"":@"00000009":@"S_MOD_INIT_FUNC_POINTERS"]; break;
-    case S_MOD_TERM_FUNC_POINTERS:              [node.details appendRow:@"":@"":@"0000000A":@"S_MOD_TERM_FUNC_POINTERS"]; break;
-    case S_COALESCED:                           [node.details appendRow:@"":@"":@"0000000B":@"S_COALESCED"]; break;
-    case S_GB_ZEROFILL:                         [node.details appendRow:@"":@"":@"0000000C":@"S_GB_ZEROFILL"]; break;
-    case S_INTERPOSING:                         [node.details appendRow:@"":@"":@"0000000D":@"S_INTERPOSING"]; break;
-    case S_16BYTE_LITERALS:                     [node.details appendRow:@"":@"":@"0000000E":@"S_16BYTE_LITERALS"]; break;
-    case S_DTRACE_DOF:                          [node.details appendRow:@"":@"":@"0000000F":@"S_DTRACE_DOF"]; break;
-    case S_LAZY_DYLIB_SYMBOL_POINTERS:          [node.details appendRow:@"":@"":@"00000010":@"S_LAZY_DYLIB_SYMBOL_POINTERS"]; break;
-    case S_THREAD_LOCAL_REGULAR:                [node.details appendRow:@"":@"":@"00000011":@"S_THREAD_LOCAL_REGULAR"]; break;
-    case S_THREAD_LOCAL_ZEROFILL:               [node.details appendRow:@"":@"":@"00000012":@"S_THREAD_LOCAL_ZEROFILL"]; break;
-    case S_THREAD_LOCAL_VARIABLES:              [node.details appendRow:@"":@"":@"00000013":@"S_THREAD_LOCAL_VARIABLES"]; break;
-    case S_THREAD_LOCAL_VARIABLE_POINTERS:      [node.details appendRow:@"":@"":@"00000014":@"S_THREAD_LOCAL_VARIABLE_POINTERS"]; break;
-    case S_THREAD_LOCAL_INIT_FUNCTION_POINTERS: [node.details appendRow:@"":@"":@"00000015":@"S_THREAD_LOCAL_INIT_FUNCTION_POINTERS"]; break;
-  }
+    switch (section_64->flags & SECTION_TYPE)
+    {
+        case S_REGULAR:                             [node.details appendRow:@"":@"":@"00000000":@"S_REGULAR"]; break;
+        case S_ZEROFILL:                            [node.details appendRow:@"":@"":@"00000001":@"S_ZEROFILL"]; break;
+        case S_CSTRING_LITERALS:                    [node.details appendRow:@"":@"":@"00000002":@"S_CSTRING_LITERALS"]; break;
+        case S_4BYTE_LITERALS:                      [node.details appendRow:@"":@"":@"00000003":@"S_4BYTE_LITERALS"]; break;
+        case S_8BYTE_LITERALS:                      [node.details appendRow:@"":@"":@"00000004":@"S_8BYTE_LITERALS"]; break;
+        case S_LITERAL_POINTERS:                    [node.details appendRow:@"":@"":@"00000005":@"S_LITERAL_POINTERS"]; break;
+        case S_NON_LAZY_SYMBOL_POINTERS:            [node.details appendRow:@"":@"":@"00000006":@"S_NON_LAZY_SYMBOL_POINTERS"]; break;
+        case S_LAZY_SYMBOL_POINTERS:                [node.details appendRow:@"":@"":@"00000007":@"S_LAZY_SYMBOL_POINTERS"]; break;
+        case S_SYMBOL_STUBS:                        [node.details appendRow:@"":@"":@"00000008":@"S_SYMBOL_STUBS"]; break;
+        case S_MOD_INIT_FUNC_POINTERS:              [node.details appendRow:@"":@"":@"00000009":@"S_MOD_INIT_FUNC_POINTERS"]; break;
+        case S_MOD_TERM_FUNC_POINTERS:              [node.details appendRow:@"":@"":@"0000000A":@"S_MOD_TERM_FUNC_POINTERS"]; break;
+        case S_COALESCED:                           [node.details appendRow:@"":@"":@"0000000B":@"S_COALESCED"]; break;
+        case S_GB_ZEROFILL:                         [node.details appendRow:@"":@"":@"0000000C":@"S_GB_ZEROFILL"]; break;
+        case S_INTERPOSING:                         [node.details appendRow:@"":@"":@"0000000D":@"S_INTERPOSING"]; break;
+        case S_16BYTE_LITERALS:                     [node.details appendRow:@"":@"":@"0000000E":@"S_16BYTE_LITERALS"]; break;
+        case S_DTRACE_DOF:                          [node.details appendRow:@"":@"":@"0000000F":@"S_DTRACE_DOF"]; break;
+        case S_LAZY_DYLIB_SYMBOL_POINTERS:          [node.details appendRow:@"":@"":@"00000010":@"S_LAZY_DYLIB_SYMBOL_POINTERS"]; break;
+        case S_THREAD_LOCAL_REGULAR:                [node.details appendRow:@"":@"":@"00000011":@"S_THREAD_LOCAL_REGULAR"]; break;
+        case S_THREAD_LOCAL_ZEROFILL:               [node.details appendRow:@"":@"":@"00000012":@"S_THREAD_LOCAL_ZEROFILL"]; break;
+        case S_THREAD_LOCAL_VARIABLES:              [node.details appendRow:@"":@"":@"00000013":@"S_THREAD_LOCAL_VARIABLES"]; break;
+        case S_THREAD_LOCAL_VARIABLE_POINTERS:      [node.details appendRow:@"":@"":@"00000014":@"S_THREAD_LOCAL_VARIABLE_POINTERS"]; break;
+        case S_THREAD_LOCAL_INIT_FUNCTION_POINTERS: [node.details appendRow:@"":@"":@"00000015":@"S_THREAD_LOCAL_INIT_FUNCTION_POINTERS"]; break;
+        case S_INIT_FUNC_OFFSETS:                   [node.details appendRow:@"":@"":@"00000016":@"S_INIT_FUNC_OFFSETS"]; break;
+    }
   
   if (section_64->flags & S_ATTR_PURE_INSTRUCTIONS)   [node.details appendRow:@"":@"":@"80000000":@"S_ATTR_PURE_INSTRUCTIONS"];
   if (section_64->flags & S_ATTR_NO_TOC)              [node.details appendRow:@"":@"":@"40000000":@"S_ATTR_NO_TOC"];
@@ -528,7 +562,7 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (MVNode *)createLCSymtabNode:(MVNode *)parent
                      caption:(NSString *)caption
-                    location:(uint32_t)location
+                    location:(uint64_t)location
               symtab_command:(struct symtab_command const *)symtab_command
 {
   MVNodeSaver nodeSaver;
@@ -583,7 +617,7 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (MVNode *)createLCDysymtabNode:(MVNode *)parent
                        caption:(NSString *)caption
-                      location:(uint32_t)location
+                      location:(uint64_t)location
               dysymtab_command:(struct dysymtab_command const *)dysymtab_command
 {
   MVNodeSaver nodeSaver;
@@ -722,7 +756,7 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (MVNode *)createLCTwolevelHintsNode:(MVNode *)parent
                             caption:(NSString *)caption
-                           location:(uint32_t)location
+                           location:(uint64_t)location
              twolevel_hints_command:(struct twolevel_hints_command const *)twolevel_hints_command
 {
   MVNodeSaver nodeSaver;
@@ -765,7 +799,7 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (MVNode *)createLCDylinkerNode:(MVNode *)parent
                        caption:(NSString *)caption
-                      location:(uint32_t)location
+                      location:(uint64_t)location
               dylinker_command:(struct dylinker_command const *)dylinker_command
 {
   MVNodeSaver nodeSaver;
@@ -811,7 +845,7 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (MVNode *)createLCPrebindChksumNode:(MVNode *)parent
                               caption:(NSString *)caption
-                             location:(uint32_t)location
+                             location:(uint64_t)location
                 prebind_cksum_command:(struct prebind_cksum_command const *)prebind_cksum_command
 {
   MVNodeSaver nodeSaver;
@@ -849,7 +883,7 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (MVNode *)createLCUUIDNode:(MVNode *)parent
                    caption:(NSString *)caption
-                  location:(uint32_t)location
+                  location:(uint64_t)location
               uuid_command:(struct uuid_command const *)uuid_command
 {
   MVNodeSaver nodeSaver;
@@ -891,250 +925,224 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (MVNode *)createLCThreadNode:(MVNode *)parent
                      caption:(NSString *)caption
-                    location:(uint32_t)location
+                    location:(uint64_t)location
               thread_command:(struct thread_command const *)thread_command
 {
-  MVNodeSaver nodeSaver;
-  MVNode * node = [parent insertChildWithDetails:caption location:location length:thread_command->cmdsize saver:nodeSaver]; 
-  
-  NSRange range = NSMakeRange(location,0);
-  NSString * lastReadHex;
-  
-  [dataController read_uint32:range lastReadHex:&lastReadHex];
-  [node.details appendRow:[NSString stringWithFormat:@"%.8lX", range.location]
-                         :lastReadHex
-                         :@"Command"
-                         :[self getNameForCommand:thread_command->cmd]];
-  
-  [node.details setAttributes:MVCellColorAttributeName,[NSColor greenColor],nil];
+    MVNodeSaver nodeSaver;
+    MVNode * node = [parent insertChildWithDetails:caption location:location length:thread_command->cmdsize saver:nodeSaver];
 
-  [dataController read_uint32:range lastReadHex:&lastReadHex];
-  [node.details appendRow:[NSString stringWithFormat:@"%.8lX", range.location]
-                         :lastReadHex
-                         :@"Command Size"
-                         :[NSString stringWithFormat:@"%u", thread_command->cmdsize]];
-  
-  [node.details setAttributes:MVCellColorAttributeName,[NSColor greenColor],
-                              MVUnderlineAttributeName,@"YES",nil];
-  
-  MATCH_STRUCT(mach_header,imageOffset);
-  if (mach_header->cputype == CPU_TYPE_I386 || mach_header->cputype == CPU_TYPE_X86_64)
-  {
-    MATCH_STRUCT(x86_thread_state,NSMaxRange(range))
-    
+    NSRange range = NSMakeRange(location,0);
+    NSString * lastReadHex;
+
     [dataController read_uint32:range lastReadHex:&lastReadHex];
     [node.details appendRow:[NSString stringWithFormat:@"%.8lX", range.location]
                            :lastReadHex
-                           :@"Flavor"
-                           :x86_thread_state->tsh.flavor == x86_THREAD_STATE32 ? @"x86_THREAD_STATE32" :
-                            x86_thread_state->tsh.flavor == x86_FLOAT_STATE32 ? @"x86_FLOAT_STATE32" :
-                            x86_thread_state->tsh.flavor == x86_EXCEPTION_STATE32 ? @"x86_EXCEPTION_STATE32" :
-                            x86_thread_state->tsh.flavor == x86_THREAD_STATE64 ? @"x86_THREAD_STATE64" :                                     
-                            x86_thread_state->tsh.flavor == x86_FLOAT_STATE64 ? @"x86_FLOAT_STATE64" :
-                            x86_thread_state->tsh.flavor == x86_EXCEPTION_STATE64 ? @"x86_EXCEPTION_STATE64" :
-                            x86_thread_state->tsh.flavor == x86_THREAD_STATE ? @"x86_THREAD_STATE" :
-                            x86_thread_state->tsh.flavor == x86_FLOAT_STATE ? @"x86_FLOAT_STATE" :
-                            x86_thread_state->tsh.flavor == x86_EXCEPTION_STATE ? @"x86_EXCEPTION_STATE" :
-                            x86_thread_state->tsh.flavor == x86_DEBUG_STATE32 ? @"x86_DEBUG_STATE32" :
-                            x86_thread_state->tsh.flavor == x86_DEBUG_STATE64 ? @"x86_DEBUG_STATE64" :
-                            x86_thread_state->tsh.flavor == x86_DEBUG_STATE ? @"x86_DEBUG_STATE" :
-                            x86_thread_state->tsh.flavor == THREAD_STATE_NONE ? @"THREAD_STATE_NONE" : @"???"];
-    
+                           :@"Command"
+                           :[self getNameForCommand:thread_command->cmd]];
+  
+    [node.details setAttributes:MVCellColorAttributeName,[NSColor greenColor],nil];
+
     [dataController read_uint32:range lastReadHex:&lastReadHex];
     [node.details appendRow:[NSString stringWithFormat:@"%.8lX", range.location]
                            :lastReadHex
-                           :@"Count"
-                           :[NSString stringWithFormat:@"%u", x86_thread_state->tsh.count]];
-    
-    [node.details setAttributes:MVUnderlineAttributeName,@"YES",nil];
-    
-    if (x86_thread_state->tsh.flavor == x86_THREAD_STATE32)
+                           :@"Command Size"
+                           :[NSString stringWithFormat:@"%u", thread_command->cmdsize]];
+  
+    [node.details setAttributes:MVCellColorAttributeName,[NSColor greenColor],
+                                MVUnderlineAttributeName,@"YES",nil];
+  
+    MATCH_STRUCT(mach_header,imageOffset);
+    if (mach_header->cputype == CPU_TYPE_I386 || mach_header->cputype == CPU_TYPE_X86_64)
     {
-      entryPoint = x86_thread_state->uts.ts32.__eip;
-
-      NSDictionary * stateDict = [NSDictionary dictionaryWithObjectsAndKeys:
-                                  [NSString stringWithFormat:@"%u",x86_thread_state->uts.ts32.__eax],   @"eax",
-                                  [NSString stringWithFormat:@"%u",x86_thread_state->uts.ts32.__ebx],   @"ebx",
-                                  [NSString stringWithFormat:@"%u",x86_thread_state->uts.ts32.__ecx],   @"ecx",
-                                  [NSString stringWithFormat:@"%u",x86_thread_state->uts.ts32.__edx],   @"edx",
-                                  [NSString stringWithFormat:@"%u",x86_thread_state->uts.ts32.__edi],   @"edi",
-                                  [NSString stringWithFormat:@"%u",x86_thread_state->uts.ts32.__esi],   @"esi",
-                                  [NSString stringWithFormat:@"%u",x86_thread_state->uts.ts32.__ebp],   @"ebp",
-                                  [NSString stringWithFormat:@"%u",x86_thread_state->uts.ts32.__esp],   @"esp",
-                                  [NSString stringWithFormat:@"%u",x86_thread_state->uts.ts32.__ss],    @"ss", 
-                                  [NSString stringWithFormat:@"%u",x86_thread_state->uts.ts32.__eflags],@"eflags",
-                                  [NSString stringWithFormat:@"%u",x86_thread_state->uts.ts32.__eip],   @"eip",
-                                  [NSString stringWithFormat:@"%u",x86_thread_state->uts.ts32.__cs],    @"cs", 
-                                  [NSString stringWithFormat:@"%u",x86_thread_state->uts.ts32.__ds],    @"ds", 
-                                  [NSString stringWithFormat:@"%u",x86_thread_state->uts.ts32.__es],    @"es", 
-                                  [NSString stringWithFormat:@"%u",x86_thread_state->uts.ts32.__fs],    @"fs", 
-                                  [NSString stringWithFormat:@"%u",x86_thread_state->uts.ts32.__gs],    @"gs", 
-                                  nil];
-      
-      for (id key in [NSArray arrayWithObjects:
-                      @"eax",@"ebx",@"ecx",@"edx",
-                      @"edi",@"esi",@"ebp",@"esp",
-                      @"ss",@"eflags",@"eip",@"cs", 
-                      @"ds",@"es",@"fs",@"gs",nil]) 
-      {
+        MATCH_STRUCT(_x86_thread_state,NSMaxRange(range))
+    
+        NSString *flavor;
+        switch (_x86_thread_state->tsh.flavor) {
+            case _x86_THREAD_STATE32:
+                flavor = @"x86_THREAD_STATE32"; break;
+            case _x86_FLOAT_STATE32:
+                flavor = @"x86_FLOAT_STATE32"; break;
+            case _x86_EXCEPTION_STATE32:
+                flavor = @"x86_EXCEPTION_STATE32"; break;
+            case _x86_THREAD_STATE64:
+                flavor = @"x86_THREAD_STATE64"; break;
+            case _x86_FLOAT_STATE64:
+                flavor = @"x86_FLOAT_STATE64"; break;
+            case _x86_EXCEPTION_STATE64:
+                flavor = @"x86_EXCEPTION_STATE64"; break;
+            case _x86_THREAD_STATE:
+                flavor = @"x86_THREAD_STATE"; break;
+            case _x86_FLOAT_STATE:
+                flavor = @"x86_FLOAT_STATE"; break;
+            case _x86_EXCEPTION_STATE:
+                flavor = @"x86_EXCEPTION_STATE"; break;
+            case _x86_DEBUG_STATE32:
+                flavor = @"x86_DEBUG_STATE32"; break;
+            case _x86_DEBUG_STATE64:
+                flavor = @"x86_DEBUG_STATE64"; break;
+            case _x86_DEBUG_STATE:
+                flavor = @"x86_DEBUG_STATE"; break;
+            case _x86_THREAD_STATE_NONE:
+                flavor = @"THREAD_STATE_NONE"; break;
+            default:
+                flavor = @"???"; break;
+        }
         [dataController read_uint32:range lastReadHex:&lastReadHex];
         [node.details appendRow:[NSString stringWithFormat:@"%.8lX", range.location]
                                :lastReadHex
-                               :key
-                               :[stateDict objectForKey:key]];
-      }
-    }
-    else if (x86_thread_state->tsh.flavor == x86_THREAD_STATE64)
-    {
-      entryPoint = x86_thread_state->uts.ts64.__rip;
-      
-      NSDictionary * stateDict = [NSDictionary dictionaryWithObjectsAndKeys:
-                                  [NSString stringWithFormat:@"%qu",x86_thread_state->uts.ts64.__rax], @"rax",
-                                  [NSString stringWithFormat:@"%qu",x86_thread_state->uts.ts64.__rbx], @"rbx",
-                                  [NSString stringWithFormat:@"%qu",x86_thread_state->uts.ts64.__rcx], @"rcx",
-                                  [NSString stringWithFormat:@"%qu",x86_thread_state->uts.ts64.__rdx], @"rdx",
-                                  [NSString stringWithFormat:@"%qu",x86_thread_state->uts.ts64.__rdi], @"rdi",
-                                  [NSString stringWithFormat:@"%qu",x86_thread_state->uts.ts64.__rsi], @"rsi",
-                                  [NSString stringWithFormat:@"%qu",x86_thread_state->uts.ts64.__rbp], @"rbp",
-                                  [NSString stringWithFormat:@"%qu",x86_thread_state->uts.ts64.__rsp], @"rsp",
-                                  [NSString stringWithFormat:@"%qu",x86_thread_state->uts.ts64.__r8], @"r8",
-                                  [NSString stringWithFormat:@"%qu",x86_thread_state->uts.ts64.__r9], @"r9", 
-                                  [NSString stringWithFormat:@"%qu",x86_thread_state->uts.ts64.__r10], @"r10", 
-                                  [NSString stringWithFormat:@"%qu",x86_thread_state->uts.ts64.__r11], @"r11", 
-                                  [NSString stringWithFormat:@"%qu",x86_thread_state->uts.ts64.__r12], @"r12", 
-                                  [NSString stringWithFormat:@"%qu",x86_thread_state->uts.ts64.__r13], @"r13", 
-                                  [NSString stringWithFormat:@"%qu",x86_thread_state->uts.ts64.__r14], @"r14", 
-                                  [NSString stringWithFormat:@"%qu",x86_thread_state->uts.ts64.__r15], @"r15", 
-                                  [NSString stringWithFormat:@"%qu",x86_thread_state->uts.ts64.__rip], @"rip",
-                                  [NSString stringWithFormat:@"%qu",x86_thread_state->uts.ts64.__rflags], @"rflags",
-                                  [NSString stringWithFormat:@"%qu",x86_thread_state->uts.ts64.__cs], @"cs",
-                                  [NSString stringWithFormat:@"%qu",x86_thread_state->uts.ts64.__fs], @"fs", 
-                                  [NSString stringWithFormat:@"%qu",x86_thread_state->uts.ts64.__gs], @"gs", nil];
-      
-      for (id key in [NSArray arrayWithObjects:
-                      @"rax",@"rbx",@"rcx",@"rdx",@"rdi",@"rsi",@"rbp",@"rsp",
-                      @"r8",@"r9", @"r10", @"r11", @"r12", @"r13", @"r14", @"r15", 
-                      @"rip",@"rflags",@"cs",@"fs", @"gs", nil])
-      {
-        [dataController read_uint64:range lastReadHex:&lastReadHex];
-        [node.details appendRow:[NSString stringWithFormat:@"%.8lX", range.location]
-                               :lastReadHex
-                               :key
-                               :[stateDict objectForKey:key]];
-      }
-    }
-  }
-  else if (mach_header->cputype == CPU_TYPE_ARM)
-  {
-    struct arm_thread_state
-    {
-      uint32_t  flavor;
-      uint32_t  count;
-      union 
-      {
-        struct thread_state
-        {
-          uint32_t	__r[13];      // General purpose register r0-r12
-          uint32_t	__sp;         // Stack pointer r13
-          uint32_t	__lr;         // Link register r14
-          uint32_t	__pc;         // Program counter r15
-          uint32_t	__cpsr;       // Current program status register
-        } ts;
-        
-        struct vfp_state
-        {
-          uint32_t  __r[64];
-          uint32_t  __fpscr;
-        } vs;
-        
-        struct exception_state
-        {
-        	uint32_t	__exception;  // number of arm exception taken
-          uint32_t	__fsr;        // Fault status
-          uint32_t	__far;        // Virtual Fault Address
-        } es;
-        
-        struct debug_state
-        {
-          uint32_t  __bvr[16];
-          uint32_t  __bcr[16];
-          uint32_t  __wvr[16];
-          uint32_t  __wcr[16];
-        } ds;
-      } uts;
-    };
-
-    MATCH_STRUCT(arm_thread_state,NSMaxRange(range))
+                               :@"Flavor"
+                               :flavor];
     
-    [dataController read_uint32:range lastReadHex:&lastReadHex];
-    [node.details appendRow:[NSString stringWithFormat:@"%.8lX", range.location]
-                           :lastReadHex
-                           :@"Flavor"
-                           :arm_thread_state->flavor == 1 ? @"ARM_THREAD_STATE" :
-                            arm_thread_state->flavor == 2 ? @"ARM_VFP_STATE" :
-                            arm_thread_state->flavor == 3 ? @"ARM_EXCEPTION_STATE" :
-                            arm_thread_state->flavor == 4 ? @"ARM_DEBUG_STATE" :                                     
-                            arm_thread_state->flavor == 5 ? @"THREAD_STATE_NONE" : @"???"];
-    
-    [dataController read_uint32:range lastReadHex:&lastReadHex];
-    [node.details appendRow:[NSString stringWithFormat:@"%.8lX", range.location]
-                           :lastReadHex
-                           :@"Count"
-                           :[NSString stringWithFormat:@"%u", arm_thread_state->count]];
-    
-    [node.details setAttributes:MVUnderlineAttributeName,@"YES",nil];
-    
-    #pragma message "TODO: complete the remaining favors"
-    
-    if (arm_thread_state->flavor == 1)
-    {
-      entryPoint = arm_thread_state->uts.ts.__pc;
-      
-      NSDictionary * stateDict = [NSDictionary dictionaryWithObjectsAndKeys:
-                                  [NSString stringWithFormat:@"%u",arm_thread_state->uts.ts.__r[0]],   @"r0",
-                                  [NSString stringWithFormat:@"%u",arm_thread_state->uts.ts.__r[1]],   @"r1",
-                                  [NSString stringWithFormat:@"%u",arm_thread_state->uts.ts.__r[2]],   @"r2",
-                                  [NSString stringWithFormat:@"%u",arm_thread_state->uts.ts.__r[3]],   @"r3",
-                                  [NSString stringWithFormat:@"%u",arm_thread_state->uts.ts.__r[4]],   @"r4",
-                                  [NSString stringWithFormat:@"%u",arm_thread_state->uts.ts.__r[5]],   @"r5",
-                                  [NSString stringWithFormat:@"%u",arm_thread_state->uts.ts.__r[6]],   @"r6",
-                                  [NSString stringWithFormat:@"%u",arm_thread_state->uts.ts.__r[7]],   @"r7",
-                                  [NSString stringWithFormat:@"%u",arm_thread_state->uts.ts.__r[8]],   @"r8", 
-                                  [NSString stringWithFormat:@"%u",arm_thread_state->uts.ts.__r[9]],   @"r9",
-                                  [NSString stringWithFormat:@"%u",arm_thread_state->uts.ts.__r[10]],  @"r10",
-                                  [NSString stringWithFormat:@"%u",arm_thread_state->uts.ts.__r[11]],  @"r11", 
-                                  [NSString stringWithFormat:@"%u",arm_thread_state->uts.ts.__r[12]],  @"r12", 
-                                  [NSString stringWithFormat:@"%u",arm_thread_state->uts.ts.__sp],     @"sp", 
-                                  [NSString stringWithFormat:@"%u",arm_thread_state->uts.ts.__lr],     @"lr", 
-                                  [NSString stringWithFormat:@"%u",arm_thread_state->uts.ts.__pc],     @"pc", 
-                                  [NSString stringWithFormat:@"%u",arm_thread_state->uts.ts.__cpsr],   @"cpsr", 
-                                  nil];
-      
-      for (id key in [NSArray arrayWithObjects:
-                      @"r0", @"r1", @"r2", @"r3", @"r4", @"r5", @"r6",
-                      @"r7", @"r8", @"r9", @"r10",@"r11", @"r12", 
-                      @"sp", @"lr", @"pc", @"cpsr", nil])
-      {
         [dataController read_uint32:range lastReadHex:&lastReadHex];
         [node.details appendRow:[NSString stringWithFormat:@"%.8lX", range.location]
                                :lastReadHex
-                               :key
-                               :[stateDict objectForKey:key]];
-      }
+                               :@"Count"
+                               :[NSString stringWithFormat:@"%u", _x86_thread_state->tsh.count]];
+    
+        [node.details setAttributes:MVUnderlineAttributeName,@"YES",nil];
+    
+        if (_x86_thread_state->tsh.flavor == _x86_THREAD_STATE32) {
+            entryPoint = _x86_thread_state->uts.ts32.eip;
+
+            NSDictionary * stateDict = [NSDictionary dictionaryWithObjectsAndKeys:
+                                        [NSString stringWithFormat:@"%u",_x86_thread_state->uts.ts32.eax],   @"eax",
+                                        [NSString stringWithFormat:@"%u",_x86_thread_state->uts.ts32.ebx],   @"ebx",
+                                        [NSString stringWithFormat:@"%u",_x86_thread_state->uts.ts32.ecx],   @"ecx",
+                                        [NSString stringWithFormat:@"%u",_x86_thread_state->uts.ts32.edx],   @"edx",
+                                        [NSString stringWithFormat:@"%u",_x86_thread_state->uts.ts32.edi],   @"edi",
+                                        [NSString stringWithFormat:@"%u",_x86_thread_state->uts.ts32.esi],   @"esi",
+                                        [NSString stringWithFormat:@"%u",_x86_thread_state->uts.ts32.ebp],   @"ebp",
+                                        [NSString stringWithFormat:@"%u",_x86_thread_state->uts.ts32.esp],   @"esp",
+                                        [NSString stringWithFormat:@"%u",_x86_thread_state->uts.ts32.ss],    @"ss",
+                                        [NSString stringWithFormat:@"%u",_x86_thread_state->uts.ts32.eflags],@"eflags",
+                                        [NSString stringWithFormat:@"%u",_x86_thread_state->uts.ts32.eip],   @"eip",
+                                        [NSString stringWithFormat:@"%u",_x86_thread_state->uts.ts32.cs],    @"cs",
+                                        [NSString stringWithFormat:@"%u",_x86_thread_state->uts.ts32.ds],    @"ds",
+                                        [NSString stringWithFormat:@"%u",_x86_thread_state->uts.ts32.es],    @"es",
+                                        [NSString stringWithFormat:@"%u",_x86_thread_state->uts.ts32.fs],    @"fs",
+                                        [NSString stringWithFormat:@"%u",_x86_thread_state->uts.ts32.gs],    @"gs",
+                                        nil];
+      
+            for (id key in [NSArray arrayWithObjects:
+                            @"eax",@"ebx",@"ecx",@"edx",
+                            @"edi",@"esi",@"ebp",@"esp",
+                            @"ss",@"eflags",@"eip",@"cs",
+                            @"ds",@"es",@"fs",@"gs",nil])
+            {
+                [dataController read_uint32:range lastReadHex:&lastReadHex];
+                [node.details appendRow:[NSString stringWithFormat:@"%.8lX", range.location]
+                                       :lastReadHex
+                                       :key
+                                       :[stateDict objectForKey:key]];
+            }
+        }
+        else if (_x86_thread_state->tsh.flavor == _x86_THREAD_STATE64) {
+            entryPoint = _x86_thread_state->uts.ts64.rip;
+            NSDictionary * stateDict = [NSDictionary dictionaryWithObjectsAndKeys:
+                                        [NSString stringWithFormat:@"%qu",_x86_thread_state->uts.ts64.rax], @"rax",
+                                        [NSString stringWithFormat:@"%qu",_x86_thread_state->uts.ts64.rbx], @"rbx",
+                                        [NSString stringWithFormat:@"%qu",_x86_thread_state->uts.ts64.rcx], @"rcx",
+                                        [NSString stringWithFormat:@"%qu",_x86_thread_state->uts.ts64.rdx], @"rdx",
+                                        [NSString stringWithFormat:@"%qu",_x86_thread_state->uts.ts64.rdi], @"rdi",
+                                        [NSString stringWithFormat:@"%qu",_x86_thread_state->uts.ts64.rsi], @"rsi",
+                                        [NSString stringWithFormat:@"%qu",_x86_thread_state->uts.ts64.rbp], @"rbp",
+                                        [NSString stringWithFormat:@"%qu",_x86_thread_state->uts.ts64.rsp], @"rsp",
+                                        [NSString stringWithFormat:@"%qu",_x86_thread_state->uts.ts64.r8], @"r8",
+                                        [NSString stringWithFormat:@"%qu",_x86_thread_state->uts.ts64.r9], @"r9",
+                                        [NSString stringWithFormat:@"%qu",_x86_thread_state->uts.ts64.r10], @"r10",
+                                        [NSString stringWithFormat:@"%qu",_x86_thread_state->uts.ts64.r11], @"r11",
+                                        [NSString stringWithFormat:@"%qu",_x86_thread_state->uts.ts64.r12], @"r12",
+                                        [NSString stringWithFormat:@"%qu",_x86_thread_state->uts.ts64.r13], @"r13",
+                                        [NSString stringWithFormat:@"%qu",_x86_thread_state->uts.ts64.r14], @"r14",
+                                        [NSString stringWithFormat:@"%qu",_x86_thread_state->uts.ts64.r15], @"r15",
+                                        [NSString stringWithFormat:@"%qu",_x86_thread_state->uts.ts64.rip], @"rip",
+                                        [NSString stringWithFormat:@"%qu",_x86_thread_state->uts.ts64.rflags], @"rflags",
+                                        [NSString stringWithFormat:@"%qu",_x86_thread_state->uts.ts64.cs], @"cs",
+                                        [NSString stringWithFormat:@"%qu",_x86_thread_state->uts.ts64.fs], @"fs",
+                                        [NSString stringWithFormat:@"%qu",_x86_thread_state->uts.ts64.gs], @"gs", nil];
+      
+            for (id key in [NSArray arrayWithObjects:
+                            @"rax",@"rbx",@"rcx",@"rdx",@"rdi",@"rsi",@"rbp",@"rsp",
+                            @"r8",@"r9", @"r10", @"r11", @"r12", @"r13", @"r14", @"r15",
+                            @"rip",@"rflags",@"cs",@"fs", @"gs", nil])
+            {
+                [dataController read_uint64:range lastReadHex:&lastReadHex];
+                [node.details appendRow:[NSString stringWithFormat:@"%.8lX", range.location]
+                                       :lastReadHex
+                                       :key
+                                       :[stateDict objectForKey:key]];
+            }
+        }
+    } // i386/x64
+    // these can be built targeting armv7
+    else if (mach_header->cputype == CPU_TYPE_ARM) {
+        MATCH_STRUCT(_arm_unified_thread_state,NSMaxRange(range))
+        
+        [dataController read_uint32:range lastReadHex:&lastReadHex];
+        [node.details appendRow:[NSString stringWithFormat:@"%.8lX", range.location]
+                               :lastReadHex
+                               :@"Flavor"
+                               :_arm_unified_thread_state->ash.flavor == _ARM_THREAD_STATE ? @"ARM_THREAD_STATE" :
+         _arm_unified_thread_state->ash.flavor == _ARM_VFP_STATE ? @"ARM_VFP_STATE" :
+         _arm_unified_thread_state->ash.flavor == _ARM_EXCEPTION_STATE ? @"ARM_EXCEPTION_STATE" :
+         _arm_unified_thread_state->ash.flavor == _ARM_DEBUG_STATE ? @"ARM_DEBUG_STATE" :
+         _arm_unified_thread_state->ash.flavor == _ARM_THREAD_STATE_NONE ? @"THREAD_STATE_NONE" : @"???"];
+        
+        [dataController read_uint32:range lastReadHex:&lastReadHex];
+        [node.details appendRow:[NSString stringWithFormat:@"%.8lX", range.location]
+                               :lastReadHex
+                               :@"Count"
+                               :[NSString stringWithFormat:@"%u", _arm_unified_thread_state->ash.count]];
+        
+        [node.details setAttributes:MVUnderlineAttributeName,@"YES",nil];
+        
+        if (_arm_unified_thread_state->ash.flavor == _ARM_THREAD_STATE) {
+            entryPoint = _arm_unified_thread_state->uts.ts32.pc;
+            NSDictionary * stateDict = [NSDictionary dictionaryWithObjectsAndKeys:
+                                        [NSString stringWithFormat:@"%u",_arm_unified_thread_state->uts.ts32.r[0]],   @"r0",
+                                        [NSString stringWithFormat:@"%u",_arm_unified_thread_state->uts.ts32.r[1]],   @"r1",
+                                        [NSString stringWithFormat:@"%u",_arm_unified_thread_state->uts.ts32.r[2]],   @"r2",
+                                        [NSString stringWithFormat:@"%u",_arm_unified_thread_state->uts.ts32.r[3]],   @"r3",
+                                        [NSString stringWithFormat:@"%u",_arm_unified_thread_state->uts.ts32.r[4]],   @"r4",
+                                        [NSString stringWithFormat:@"%u",_arm_unified_thread_state->uts.ts32.r[5]],   @"r5",
+                                        [NSString stringWithFormat:@"%u",_arm_unified_thread_state->uts.ts32.r[6]],   @"r6",
+                                        [NSString stringWithFormat:@"%u",_arm_unified_thread_state->uts.ts32.r[7]],   @"r7",
+                                        [NSString stringWithFormat:@"%u",_arm_unified_thread_state->uts.ts32.r[8]],   @"r8",
+                                        [NSString stringWithFormat:@"%u",_arm_unified_thread_state->uts.ts32.r[9]],   @"r9",
+                                        [NSString stringWithFormat:@"%u",_arm_unified_thread_state->uts.ts32.r[10]],  @"r10",
+                                        [NSString stringWithFormat:@"%u",_arm_unified_thread_state->uts.ts32.r[11]],  @"r11",
+                                        [NSString stringWithFormat:@"%u",_arm_unified_thread_state->uts.ts32.r[12]],  @"r12",
+                                        [NSString stringWithFormat:@"%u",_arm_unified_thread_state->uts.ts32.sp],     @"sp",
+                                        [NSString stringWithFormat:@"%u",_arm_unified_thread_state->uts.ts32.lr],     @"lr",
+                                        [NSString stringWithFormat:@"%u",_arm_unified_thread_state->uts.ts32.pc],     @"pc",
+                                        [NSString stringWithFormat:@"%u",_arm_unified_thread_state->uts.ts32.cpsr],   @"cpsr",
+                                        nil];
+            
+            for (id key in [NSArray arrayWithObjects:
+                            @"r0", @"r1", @"r2", @"r3", @"r4", @"r5", @"r6",
+                            @"r7", @"r8", @"r9", @"r10",@"r11", @"r12",
+                            @"sp", @"lr", @"pc", @"cpsr", nil])
+            {
+                [dataController read_uint32:range lastReadHex:&lastReadHex];
+                [node.details appendRow:[NSString stringWithFormat:@"%.8lX", range.location]
+                                       :lastReadHex
+                                       :key
+                                       :[stateDict objectForKey:key]];
+            }
+        }
     }
-    else if (mach_header->cputype == CPU_TYPE_ARM64)
-    {
+    // these seem impossible to build - arm64 builds to iOS 7 min and LC_MAIN was introduced with iOS 6
+    else if (mach_header->cputype == CPU_TYPE_ARM64) {
 #pragma message "TODO: ARM64"
     }
-  }
-  
-  return node;
+    
+    return node;
 }
 
 //-----------------------------------------------------------------------------
 - (MVNode *)createLCDylibNode:(MVNode *)parent
                     caption:(NSString *)caption
-                   location:(uint32_t)location
+                   location:(uint64_t)location
               dylib_command:(struct dylib_command const *)dylib_command
 {
   MVNodeSaver nodeSaver;
@@ -1205,7 +1213,7 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (MVNode *)createLCLinkeditDataNode:(MVNode *)parent
                            caption:(NSString *)caption
-                          location:(uint32_t)location
+                          location:(uint64_t)location
              linkedit_data_command:(struct linkedit_data_command const *)linkedit_data_command
 {
   MVNodeSaver nodeSaver;
@@ -1248,7 +1256,7 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (MVNode *)createLCRoutinesNode:(MVNode *)parent
                          caption:(NSString *)caption
-                        location:(uint32_t)location
+                        location:(uint64_t)location
                 routines_command:(struct routines_command const *)routines_command
 {
   MVNodeSaver nodeSaver;
@@ -1327,7 +1335,7 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (MVNode *)createLCRoutines64Node:(MVNode *)parent
                            caption:(NSString *)caption
-                          location:(uint32_t)location
+                          location:(uint64_t)location
                routines_command_64:(struct routines_command_64 const *)routines_command_64
 {
   MVNodeSaver nodeSaver;
@@ -1406,7 +1414,7 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (MVNode *)createLCSubFrameworkNode:(MVNode *)parent
                              caption:(NSString *)caption
-                            location:(uint32_t)location
+                            location:(uint64_t)location
                sub_framework_command:(struct sub_framework_command const *)sub_framework_command
 {
   MVNodeSaver nodeSaver;
@@ -1452,7 +1460,7 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (MVNode *)createLCSubUmbrellaNode:(MVNode *)parent
                             caption:(NSString *)caption
-                           location:(uint32_t)location
+                           location:(uint64_t)location
                sub_umbrella_command:(struct sub_umbrella_command const *)sub_umbrella_command
 {
   MVNodeSaver nodeSaver;
@@ -1498,7 +1506,7 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (MVNode *)createLCSubClientNode:(MVNode *)parent
                           caption:(NSString *)caption
-                         location:(uint32_t)location
+                         location:(uint64_t)location
                sub_client_command:(struct sub_client_command const *)sub_client_command
 {
   MVNodeSaver nodeSaver;
@@ -1544,7 +1552,7 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (MVNode *)createLCSubLibraryNode:(MVNode *)parent
                            caption:(NSString *)caption
-                          location:(uint32_t)location
+                          location:(uint64_t)location
                sub_library_command:(struct sub_library_command const *)sub_library_command
 {
   MVNodeSaver nodeSaver;
@@ -1590,7 +1598,7 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (MVNode *)createLCDyldInfoNode:(MVNode *)parent
                          caption:(NSString *)caption
-                        location:(uint32_t)location
+                        location:(uint64_t)location
                dyld_info_command:(struct dyld_info_command const *)dyld_info_command
 {
   MVNodeSaver nodeSaver;
@@ -1681,7 +1689,7 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (MVNode *)createLCEncryptionInfoNode:(MVNode *)parent
                                caption:(NSString *)caption
-                              location:(uint32_t)location
+                              location:(uint64_t)location
                encryption_info_command:(struct encryption_info_command const *)encryption_info_command
 {
   MVNodeSaver nodeSaver;
@@ -1730,7 +1738,7 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (MVNode *)createLCEncryptionInfo64Node:(MVNode *)parent
                                  caption:(NSString *)caption
-                                location:(uint32_t)location
+                                location:(uint64_t)location
               encryption_info_command_64:(struct encryption_info_command_64 const *)encryption_info_command_64
 {
   MVNodeSaver nodeSaver;
@@ -1786,7 +1794,7 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (MVNode *)createLCRPathNode:(MVNode *)parent
                       caption:(NSString *)caption
-                     location:(uint32_t)location
+                     location:(uint64_t)location
                 rpath_command:(struct rpath_command const *)rpath_command
 {
   MVNodeSaver nodeSaver;
@@ -1832,7 +1840,7 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (MVNode *)createLCVersionMinNode:(MVNode *)parent
                            caption:(NSString *)caption
-                          location:(uint32_t)location
+                          location:(uint64_t)location
                version_min_command:(struct version_min_command const *)version_min_command
 {
   MVNodeSaver nodeSaver;
@@ -1878,7 +1886,7 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (MVNode *)createLCMainNode:(MVNode *)parent
                      caption:(NSString *)caption
-                    location:(uint32_t)location
+                    location:(uint64_t)location
           entrypoint_command:(struct entry_point_command const *)entry_point_command
 {
     MVNodeSaver nodeSaver;
@@ -1916,27 +1924,21 @@ using namespace std;
                            :@"Stacksize"
                            :[NSString stringWithFormat:@"%qu", entry_point_command->stacksize]];
     // add an entry with entry point address
-    // this is the non-aslr value since we don't its value here
+    // this is the non-aslr value since we don't know its value here
     uint64_t text_vmaddr = 0;
-    if ([self is64bit] == YES)
-    {
-        for (Segment64Vector::const_iterator cmdIter = segments_64.begin(); cmdIter != segments_64.end(); ++cmdIter)
-        {
+    if ([self is64bit] == YES) {
+        for (Segment64Vector::const_iterator cmdIter = segments_64.begin(); cmdIter != segments_64.end(); ++cmdIter) {
             struct segment_command_64 const *sg = (struct segment_command_64 const *)(*cmdIter);
-            if (strncmp(sg->segname, "__TEXT", 16) == 0)
-            {
+            if (strncmp(sg->segname, "__TEXT", 16) == 0) {
                 text_vmaddr = sg->vmaddr;
                 break;
             }
         }
     }
-    else
-    {
-        for (SegmentVector::const_iterator cmdIter = segments.begin(); cmdIter != segments.end(); ++cmdIter)
-        {
+    else {
+        for (SegmentVector::const_iterator cmdIter = segments.begin(); cmdIter != segments.end(); ++cmdIter) {
             struct segment_command const *sg = (struct segment_command const *)(*cmdIter);
-            if (strncmp(sg->segname, "__TEXT", 16) == 0)
-            {
+            if (strncmp(sg->segname, "__TEXT", 16) == 0) {
                 text_vmaddr = sg->vmaddr;
                 break;
             }
@@ -1944,9 +1946,9 @@ using namespace std;
     }
         
     [node.details appendRow:[NSString stringWithFormat:@"%.8x", 0]
-                           :[NSString stringWithFormat:@"0x%qx", text_vmaddr + entry_point_command->entryoff]
+                           :[NSString stringWithFormat:@"%.16qX", text_vmaddr + entry_point_command->entryoff]
                            :@"Entry Point"
-                           :[NSString stringWithFormat:@"0x%qx", text_vmaddr + entry_point_command->entryoff]];
+                           :[NSString stringWithFormat:@"0x%qX", text_vmaddr + entry_point_command->entryoff]];
 
     return node;
 }
@@ -1955,7 +1957,7 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (MVNode *)createLCSourceVersionNode:(MVNode *)parent
                               caption:(NSString *)caption
-                             location:(uint32_t)location
+                             location:(uint64_t)location
                source_version_command:(struct source_version_command const *)source_version_command
 {
     MVNodeSaver nodeSaver;
@@ -2010,7 +2012,7 @@ using namespace std;
 //-----------------------------------------------------------------------------
 - (MVNode *)createLCLinkerOptionNode:(MVNode *)parent
                              caption:(NSString *)caption
-                            location:(uint32_t)location
+                            location:(uint64_t)location
                linker_option_command:(struct linker_option_command const *)linker_option_command
 {
   MVNodeSaver nodeSaver;
@@ -2076,11 +2078,144 @@ using namespace std;
   return node;
 }
 
+- (NSString *)platformDescription:(uint32_t)platform {
+    switch (platform) {
+        case PLATFORM_MACOS: return @"macOS";
+        case PLATFORM_IOS: return @"iOS";
+        case PLATFORM_TVOS: return @"tvOS";
+        case PLATFORM_WATCHOS: return @"watchOS";
+        case PLATFORM_BRIDGEOS: return @"brigeOS";
+        case PLATFORM_MACCATALYST: return @"Mac Catalyst";
+        case PLATFORM_IOSSIMULATOR: return @"iOS Simulator";
+        case PLATFORM_TVOSSIMULATOR: return @"tvOS Simulator";
+        case PLATFORM_WATCHOSSIMULATOR: return @"watchOS Simulator";
+        case PLATFORM_DRIVERKIT: return @"DriverKit";
+        // available in Xcode 13.3 or higher with SDK 12.3+
+#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 120300
+        case PLATFORM_FIRMWARE: return @"Firmware";
+        case PLATFORM_SEPOS: return @"SEPOS";
+#endif
+        // available in Xcode 14.1 or higher with SDK 13.0+
+#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 130000
+        case PLATFORM_ANY: return @"Any";
+#endif
+        default: return @"Unknown";
+    }
+}
+
+- (NSString *)toolDescription:(uint32_t)tool {
+    switch (tool) {
+        case TOOL_CLANG: return @"clang";
+        case TOOL_SWIFT: return @"swiftc";
+        case TOOL_LD: return @"ld";
+        // available in Xcode 13.3 or higher with SDK 12.3+
+#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 120300
+        case TOOL_LLD: return @"ldd";
+#endif
+        // available in Xcode 14.1 or higher with SDK 13.0+
+#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 130000
+        case TOOL_METAL: return @"Metal";
+        case TOOL_AIRLLD: return @"Air lld";
+        case TOOL_AIRNT: return @"Air nt";
+        case TOOL_AIRNT_PLUGIN: return @"Air nt plugin";
+        case TOOL_AIRPACK: return @"Air pack";
+        case TOOL_GPUARCHIVER: return @"GPU Archiver";
+        case TOOL_METAL_FRAMEWORK: return @"Metal Framework";
+#endif
+        default: return @"unknown";
+    }
+}
+
+//-----------------------------------------------------------------------------
+- (MVNode *)createBuildVersionNode:(MVNode *)parent
+                           caption:(NSString *)caption
+                          location:(uint64_t)location
+               version_min_command:(struct build_version_command const *)build_version_command
+{
+  MVNodeSaver nodeSaver;
+  MVNode * node = [parent insertChildWithDetails:caption location:location length:build_version_command->cmdsize saver:nodeSaver];
+
+  NSRange range = NSMakeRange(location,0);
+  NSString * lastReadHex;
+
+  [dataController read_uint32:range lastReadHex:&lastReadHex];
+  [node.details appendRow:[NSString stringWithFormat:@"%.8lX", range.location]
+                         :lastReadHex
+                         :@"Command"
+                         :[self getNameForCommand:build_version_command->cmd]];
+
+  [node.details setAttributes:MVCellColorAttributeName,[NSColor greenColor],nil];
+
+  [dataController read_uint32:range lastReadHex:&lastReadHex];
+  [node.details appendRow:[NSString stringWithFormat:@"%.8lX", range.location]
+                         :lastReadHex
+                         :@"Command Size"
+                         :[NSString stringWithFormat:@"%u", build_version_command->cmdsize]];
+
+  [node.details setAttributes:MVCellColorAttributeName,[NSColor greenColor],
+                              MVUnderlineAttributeName,@"YES",nil];
+
+  [dataController read_uint32:range lastReadHex:&lastReadHex];
+  NSString *platform = [self platformDescription:build_version_command->platform];
+  [node.details appendRow:[NSString stringWithFormat:@"%.8lX", range.location]
+                         :lastReadHex
+                         :@"Platform"
+                         :[NSString stringWithFormat:@"%@ (%u)", platform, build_version_command->platform]];
+
+  [dataController read_uint32:range lastReadHex:&lastReadHex];
+  [node.details appendRow:[NSString stringWithFormat:@"%.8lX", range.location]
+                         :lastReadHex
+                         :@"Minimum OS Version"
+                         :[NSString stringWithFormat:@"%u.%u.%u",
+                           (build_version_command->minos >> 16),
+                           ((build_version_command->minos >> 8) & 0xff),
+                           (build_version_command->minos & 0xff)]];
+
+  [dataController read_uint32:range lastReadHex:&lastReadHex];
+  [node.details appendRow:[NSString stringWithFormat:@"%.8lX", range.location]
+                         :lastReadHex
+                         :@"Build SDK Version"
+                         :[NSString stringWithFormat:@"%u.%u.%u",
+                           (build_version_command->sdk >> 16),
+                           ((build_version_command->sdk >> 8) & 0xff),
+                           (build_version_command->sdk & 0xff)]];
+
+  [dataController read_uint32:range lastReadHex:&lastReadHex];
+  [node.details appendRow:[NSString stringWithFormat:@"%.8lX", range.location]
+                         :lastReadHex
+                         :@"Number of tools entries"
+                         :[NSString stringWithFormat:@"%u", build_version_command->ntools]];
+  [node.details setAttributes:MVUnderlineAttributeName,@"YES",nil];
+
+  for (uint32_t i = 0; i < build_version_command->ntools; i++) {
+    NSData *bytes = [dataController read_bytes:range length:sizeof(build_tool_version) lastReadHex:&lastReadHex];
+    struct build_tool_version tool_version;
+    [bytes getBytes:&tool_version length:sizeof(build_tool_version)];
+
+    NSString *tool = [self toolDescription:tool_version.tool];
+    [node.details appendRow:[NSString stringWithFormat:@"%.8lX", range.location]
+                           :lastReadHex
+                           :@"Tool"
+                           :[NSString stringWithFormat:@"%@ (%u)", tool, tool_version.tool]];
+
+    [node.details appendRow:[NSString stringWithFormat:@"%.8lX", range.location]
+                           :lastReadHex
+                           :@"Tool Version"
+                           :[NSString stringWithFormat:@"%u.%u.%u",
+                             (tool_version.version >> 16),
+                             ((tool_version.version >> 8) & 0xff),
+                             (tool_version.version & 0xff)]];
+    [node.details setAttributes:MVUnderlineAttributeName,@"YES",nil];
+  }
+
+  return node;
+}
+
 //-----------------------------------------------------------------------------
 -(MVNode *)createLoadCommandNode:(MVNode *)parent
                          caption:(NSString *)caption
-                        location:(uint32_t)location
-                          length:(uint32_t)length
+                        location:(uint64_t)location
+                          length:(uint64_t)length
                          command:(uint32_t)command
 {
   MVNode * node = nil;
@@ -2105,7 +2240,7 @@ using namespace std;
       // Section Headers
       for (uint32_t nsect = 0; nsect < segment_command->nsects; ++nsect)
       {
-        uint32_t sectionloc = location + sizeof(struct segment_command) + nsect * sizeof(struct section);
+        uint64_t sectionloc = location + sizeof(struct segment_command) + nsect * sizeof(struct section);
         MATCH_STRUCT(section,sectionloc)
         [self createSectionNode:node 
                         caption:[NSString stringWithFormat:@"Section Header (%s)",
@@ -2141,7 +2276,7 @@ using namespace std;
       // Section Headers
       for (uint32_t nsect = 0; nsect < segment_command_64->nsects; ++nsect)
       {
-        uint32_t sectionloc = location + sizeof(struct segment_command_64) + nsect * sizeof(struct section_64);
+        uint64_t sectionloc = location + sizeof(struct segment_command_64) + nsect * sizeof(struct section_64);
         MATCH_STRUCT(section_64,sectionloc)
         [self createSection64Node:node 
                           caption:[NSString stringWithFormat:@"Section64 Header (%s)",
@@ -2369,16 +2504,18 @@ using namespace std;
                       dyld_info_command:dyld_info_command];
     } break;   
     
-    case LC_VERSION_MIN_MACOSX:
-    case LC_VERSION_MIN_IPHONEOS:
-    {
-      MATCH_STRUCT(version_min_command,location)
-      node = [self createLCVersionMinNode:parent 
-                                  caption:caption
-                                 location:location
-                      version_min_command:version_min_command];
-      
-    } break;
+      case LC_VERSION_MIN_MACOSX:
+      case LC_VERSION_MIN_IPHONEOS:
+      case LC_VERSION_MIN_TVOS:
+      case LC_VERSION_MIN_WATCHOS:
+      {
+          MATCH_STRUCT(version_min_command,location)
+          node = [self createLCVersionMinNode:parent
+                                      caption:caption
+                                     location:location
+                          version_min_command:version_min_command];
+          break;
+      }
     case LC_MAIN:
     {
         MATCH_STRUCT(entry_point_command, location)
@@ -2403,7 +2540,35 @@ using namespace std;
                                    location:location
                       linker_option_command:linker_option_command];
     } break;
-    default:
+    case LC_BUILD_VERSION:
+    {
+      MATCH_STRUCT(build_version_command, location);
+      node = [self createBuildVersionNode:parent
+                                  caption:caption
+                                 location:location
+                      version_min_command:build_version_command];
+      break;
+    }
+          // just create space for missing commands for now
+#if 0
+      case LC_NOTE:
+      {
+          break;
+      }
+      case LC_DYLD_EXPORTS_TRIE:
+      {
+          break;
+      }
+      case LC_DYLD_CHAINED_FIXUPS:
+      {
+          break;
+      }
+      case LC_FILESET_ENTRY:
+      {
+          break;
+      }
+#endif
+      default:
       [self createDataNode:parent 
                    caption:[NSString stringWithFormat:@"%@ (unsupported)", caption]
                   location:location

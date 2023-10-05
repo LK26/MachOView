@@ -27,9 +27,9 @@ typedef std::vector<struct dylib_module_64 const *>       Module64Vector;
 typedef std::vector<struct data_in_code_entry const *>    DataInCodeEntryVector;
 typedef std::vector<uint32_t const *>                     IndirectSymbolVector;
 
-typedef std::map<uint32_t,std::pair<uint32_t,uint64_t> >        RelocMap;           // fileOffset --> <length,value>
-typedef std::map<uint32_t,std::pair<uint64_t,uint64_t> >        SegmentInfoMap;     // fileOffset --> <address,size>
-typedef std::map<uint64_t,std::pair<uint32_t,NSDictionary * __weak> >  SectionInfoMap;  // address    --> <fileOffset,sectionUserInfo>
+typedef std::map<uint32_t,std::pair<uint64_t,uint64_t> >        RelocMap;           // fileOffset --> <length,value>
+typedef std::map<uint64_t,std::pair<uint64_t,uint64_t> >        SegmentInfoMap;     // fileOffset --> <address,size>
+typedef std::map<uint64_t,std::pair<uint64_t,NSDictionary *> >  SectionInfoMap;     // address --> <fileOffset,sectionUserInfo>
 typedef std::map<uint64_t,uint64_t>                             ExceptionFrameMap;  // LSDA_addr  --> PCBegin_addr
 
 @interface MachOLayout : MVLayout 
@@ -72,22 +72,17 @@ typedef std::map<uint64_t,uint64_t>                             ExceptionFrameMa
 - (NSDictionary *)userInfoForSection:(struct section const *)section;
 - (NSDictionary *)userInfoForSection64:(struct section_64 const *)section_64;
 
-- (MVNode *)sectionNodeContainsRVA:(uint32_t)rva;
-- (MVNode *)sectionNodeContainsRVA64:(uint64_t)rva;
+- (MVNode *)sectionNodeContainsRVA:(uint64_t)rva;
 
-- (NSString *)findSectionContainsRVA:(uint32_t)rva;
-- (NSString *)findSectionContainsRVA64:(uint64_t)rva64;
+- (NSString *)findSectionContainsRVA:(uint64_t)rva;
 
-- (NSString *)findSymbolAtRVA:(uint32_t)rva;
-- (NSString *)findSymbolAtRVA64:(uint64_t)rva64;
+- (NSString *)findSymbolAtRVA:(uint64_t)rva;
 
-- (uint32_t)fileOffsetToRVA:(uint32_t)offset;
-- (uint64_t)fileOffsetToRVA64:(uint32_t)offset;
+- (uint64_t)fileOffsetToRVA:(uint64_t)offset;
 
-- (uint32_t)RVAToFileOffset:(uint32_t)rva;
-- (uint32_t)RVA64ToFileOffset:(uint64_t)rva64;
+- (uint64_t)RVAToFileOffset:(uint64_t)rva;
 
-- (void)addRelocAtFileOffset:(uint32_t)offset withLength:(uint32_t)length andValue:(uint64_t)value;
+- (void)addRelocAtFileOffset:(uint64_t)offset withLength:(uint64_t)length andValue:(uint64_t)value;
 
 - (BOOL)isDylibStub;
 

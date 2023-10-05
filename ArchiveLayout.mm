@@ -17,6 +17,7 @@
 #import "DataController.h"
 #import "MachOLayout.h"
 #import "ReadWrite.h"
+#import <mach-o/ranlib.h>
 
 //============================================================================
 @implementation MVObjectInfo
@@ -24,7 +25,7 @@
 @synthesize name, length, layout;
 
 //-----------------------------------------------------------------------------
--(id)initWithName:(NSString *)_name Length:(uint32_t)_length
+- (instancetype)initWithName:(NSString *)_name Length:(uint32_t)_length
 {
   if (self = [super init])
   {
@@ -45,7 +46,7 @@
 //============================================================================
 @implementation ArchiveLayout
 
-- (id)initWithDataController:(MVDataController *)dc rootNode:(MVNode *)node
+- (instancetype)initWithDataController:(MVDataController *)dc rootNode:(MVNode *)node
 {
   if (self = [super initWithDataController:dc rootNode:node])
   {
@@ -63,8 +64,8 @@
 
 - (MVNode *)createSignatureNode:(MVNode *)parent
                         caption:(NSString *)caption
-                       location:(uint32_t)location
-                         length:(uint32_t)length
+                       location:(uint64_t)location
+                         length:(uint64_t)length
 {
   MVNodeSaver nodeSaver;
   MVNode * node = [parent insertChildWithDetails:caption location:location length:length saver:nodeSaver]; 
@@ -83,8 +84,8 @@
 
 - (MVNode *)createHeaderNode:(MVNode *)parent
                      caption:(NSString *)caption
-                    location:(uint32_t)location
-                      length:(uint32_t)length
+                    location:(uint64_t)location
+                      length:(uint64_t)length
 {
   MVNodeSaver nodeSaver;
   MVNode * node = [parent insertChildWithDetails:caption location:location length:length saver:nodeSaver]; 
@@ -174,8 +175,8 @@
 
 - (MVNode *)createMemberNode:(MVNode *)parent
                      caption:(NSString *)caption
-                    location:(uint32_t)location
-                      length:(uint32_t)length
+                    location:(uint64_t)location
+                      length:(uint64_t)length
                       strtab:(char const *)strtab
 {
   MVNodeSaver nodeSaver;
@@ -248,16 +249,16 @@
                                               length:0]; // length will be determined in function
   
   // skip symbol and string table for now
-  uint32_t symtabOffset = NSMaxRange(symtabHeaderNode.dataRange);
+  uint64_t symtabOffset = NSMaxRange(symtabHeaderNode.dataRange);
   NSRange range = NSMakeRange(symtabOffset,0);
   uint32_t symtabSize = [dataController read_uint32:range lastReadHex:&lastReadHex] + sizeof(uint32_t);
-  uint32_t strtabOffset = symtabOffset + symtabSize;
+  uint64_t strtabOffset = symtabOffset + symtabSize;
   range = NSMakeRange(strtabOffset,0);  
   uint32_t strtabSize = [dataController read_uint32:range lastReadHex:&lastReadHex] + sizeof(uint32_t);
   
   // read headers
 
-  for (uint32_t location = strtabOffset + strtabSize; location < NSMaxRange(rootNode.dataRange); )
+  for (uint64_t location = strtabOffset + strtabSize; location < NSMaxRange(rootNode.dataRange); )
   {
     MVNode * headerNode = [self createHeaderNode:rootNode 
                                          caption:@"Object Header"
@@ -266,8 +267,8 @@
     
     MVObjectInfo * objectInfo = [objectInfoMap objectForKey:[NSNumber numberWithUnsignedLong:location]];
     
-    uint32_t objectOffset = NSMaxRange(headerNode.dataRange); // starts right after the header
-    uint32_t objectSize = objectInfo.length;
+    uint64_t objectOffset = NSMaxRange(headerNode.dataRange); // starts right after the header
+    uint64_t objectSize = objectInfo.length;
     
     // create Mach-O object layout
     MVNode * objectNode = [self createDataNode:rootNode 

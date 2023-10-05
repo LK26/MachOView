@@ -137,14 +137,14 @@
 @implementation MVRightFormatter
 
 //----------------------------------------------------------------------------
-- (id)init
+- (instancetype)init
 {
   NSAssert(NO, @"plain init is not allowed");
   return nil;
 }
 
 //-----------------------------------------------------------------------------
-- (id)initPlainWithLength:(NSUInteger)len
+- (instancetype)initPlainWithLength:(NSUInteger)len
 {
   if (self = [super init])
   {
@@ -156,7 +156,7 @@
 }
 
 //----------------------------------------------------------------------------
-- (id)initLeftAlignedWithLength:(NSUInteger)len
+- (instancetype)initLeftAlignedWithLength:(NSUInteger)len
 {
   if (self = [super init])
   {
@@ -168,7 +168,7 @@
 }
 
 //----------------------------------------------------------------------------
-- (id)initCompoundWithLength:(NSUInteger)len
+- (instancetype)initCompoundWithLength:(NSUInteger)len
 {
   if (self = [super init])
   {
@@ -329,7 +329,7 @@ enum ViewType
 }
 
 //-----------------------------------------------------------------------------
-- (id)init
+- (instancetype)init
 {
   self = [super init];
   if (self) 
@@ -403,33 +403,27 @@ enum ViewType
 //----------------------------------------------------------------------------
 - (void)handleDataTreeChanged:(NSNotification *)notification
 {
-  if ([notification object] == dataController)
-  {
+  if ([notification object] == dataController) {
     dispatch_async(dispatch_get_main_queue(), ^
     {
       // Update UI here, on the main queue
       NSDictionary * userInfo = [notification userInfo];
-      if (userInfo)
-      {
+      if (userInfo) {
         //refresh the modified node only
         MVNode * node = [userInfo objectForKey:MVNodeUserInfoKey];
       
         // check if the window still exists which contains the leftView to update
-        if ([[self windowControllers] count] == 0)
-        {
+        if ([[self windowControllers] count] == 0) {
           return;
         }
         
-        [leftView reloadItem:node.parent];
+          [self->leftView reloadItem:node.parent];
      
-        if ([leftView isItemExpanded:node.parent])
-        {
-          [leftView reloadItem:node];
-        }
-      }
-      else 
-      {
-        [leftView reloadItem:dataController.rootNode reloadChildren:YES]; 
+          if ([self->leftView isItemExpanded:node.parent]) {
+            [self->leftView reloadItem:node];
+          }
+      } else {
+          [self->leftView reloadItem:self->dataController.rootNode reloadChildren:YES];
       }
     });
   }
@@ -448,28 +442,27 @@ enum ViewType
 //----------------------------------------------------------------------------
 - (void)handleThreadStateChanged:(NSNotification *)notification
 {
-  if ([notification object] == dataController)
-  {
-    NSString * threadState = [[notification userInfo] objectForKey:MVStatusUserInfoKey];
-    if ([threadState isEqualToString:MVStatusTaskStarted] == YES)
-    {
-      if (OSAtomicIncrement32(&threadCount) == 1)
-      {
-        [progressIndicator setUsesThreadedAnimation:YES];
-        [progressIndicator startAnimation:nil];
-        [stopButton setHidden:NO];
-      }
+    if ([notification object] == dataController) {
+        NSString * threadState = [[notification userInfo] objectForKey:MVStatusUserInfoKey];
+        if ([threadState isEqualToString:MVStatusTaskStarted] == YES) {
+            if (++threadCount == 1) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [self->progressIndicator setUsesThreadedAnimation:YES];
+                    [self->progressIndicator startAnimation:nil];
+                    [self->stopButton setHidden:NO];
+                });
+            }
+        }
+        else if ([threadState isEqualToString:MVStatusTaskTerminated] == YES) {
+            if (--threadCount == 0) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [self->progressIndicator stopAnimation:nil];
+                    [self->statusText setStringValue:@""];
+                    [self->stopButton setHidden:YES];
+                });
+            }
+        }
     }
-    else if ([threadState isEqualToString:MVStatusTaskTerminated] == YES)
-    {
-      if (OSAtomicDecrement32(&threadCount) == 0)
-      {
-        [progressIndicator stopAnimation:nil]; 
-        [statusText setStringValue:@""];
-        [stopButton setHidden:YES];
-      }
-    }
-  }
 }
 
 //----------------------------------------------------------------------------
@@ -516,53 +509,57 @@ enum ViewType
 //----------------------------------------------------------------------------
 - (BOOL)readFromURL:(NSURL *)absoluteURL ofType:(NSString *)typeName error:(NSError **)outError
 {
-  // create a temporary copy for patching
-  const char *tmp = [[MVDocument temporaryDirectory] UTF8String];
-  char *tmpFilePath = strdup(tmp);
-  if (mktemp(tmpFilePath) == NULL)
-  {
-    NSLog(@"mktemp failed!");
+    // create a temporary copy for patching
+    const char *tmp = [[MVDocument temporaryDirectory] UTF8String];
+    char *tmpFilePath = strdup(tmp);
+    int fd = mkstemp(tmpFilePath);
+    if (fd < 0) {
+        NSLog(@"mktemp failed!");
+        free(tmpFilePath);
+        return NO;
+    }
+    
+    NSURL * tmpURL = [NSURL fileURLWithPath:[NSString stringWithUTF8String:tmpFilePath]];
     free(tmpFilePath);
-    return NO;
-  }
+    
+    // open the original binary for viewing/editing
+    dataController.fileName = [absoluteURL path];
+    dataController.fileData = [NSMutableData dataWithContentsOfURL:absoluteURL
+                                                           options:NSDataReadingMappedIfSafe
+                                                             error:outError];
+    if (*outError) return NO;
+    
+    // copy the file - the original code used NSFileManager but that doesn't work with mkstemp()
+    // [NSFileHandle writeData] is 10.15+ only
+    // https://developer.apple.com/library/archive/documentation/Security/Conceptual/SecureCodingGuide/Articles/RaceConditions.html
+    if (write(fd, [dataController.fileData bytes], [dataController.fileData length]) != (ssize_t)[dataController.fileData length]) {
+        NSLog(@"Write failed: %s", strerror(errno));
+        return NO;
+    }
+    close(fd);
 
-  NSURL * tmpURL = [NSURL fileURLWithPath:[NSString stringWithUTF8String:tmpFilePath]];
-  free(tmpFilePath);
-
-  [[NSFileManager defaultManager] copyItemAtURL:absoluteURL
-                                          toURL:tmpURL
-                                          error:outError];
-  if (*outError) return NO;
-
-  // open the copied binary for patching
-  dataController.realData = [NSMutableData dataWithContentsOfURL:tmpURL
-                                                         options:NSDataReadingMappedAlways 
-                                                           error:outError];
-  if (*outError) return NO;
+    // open the copied binary for patching
+    dataController.realData = [NSMutableData dataWithContentsOfURL:tmpURL
+                                                           options:NSDataReadingMappedAlways
+                                                             error:outError];
+    if (*outError) return NO;
   
-  // open the original binary for viewing/editing
-  dataController.fileName = [absoluteURL path];
-  dataController.fileData = [NSMutableData dataWithContentsOfURL:absoluteURL 
-                                                         options:NSDataReadingMappedIfSafe 
-                                                           error:outError];
-  if (*outError) return NO;
-
-  @try 
-  {
-    [dataController createLayouts:dataController.rootNode location:0 length:[dataController.fileData length]];
-  }
-  @catch (NSException * exception) 
-  {
-    *outError = [NSError errorWithDomain:NSCocoaErrorDomain 
-                                    code:NSFileReadUnknownError 
-                                userInfo:[NSDictionary dictionaryWithObjectsAndKeys:
-                                          [[self fileURL] path], NSFilePathErrorKey, 
-                                          [exception reason], NSLocalizedDescriptionKey,
-                                          nil]];
-    return NO;
-  }
+    @try
+    {
+        [dataController createLayouts:dataController.rootNode location:0 length:[dataController.fileData length]];
+    }
+    @catch (NSException * exception)
+    {
+        *outError = [NSError errorWithDomain:NSCocoaErrorDomain
+                                        code:NSFileReadUnknownError
+                                    userInfo:[NSDictionary dictionaryWithObjectsAndKeys:
+                                              [[self fileURL] path], NSFilePathErrorKey,
+                                              [exception reason], NSLocalizedDescriptionKey,
+                                              nil]];
+        return NO;
+    }
                              
-  return YES;                             
+    return YES;                             
 }
 
 //----------------------------------------------------------------------------
@@ -635,7 +632,7 @@ enum ViewType
         return;
       }
       
-      NSString * cellContent = [row coloumnAtIndex:colIndex];
+      NSString * cellContent = [row columnAtIndex:colIndex];
       if ([cellContent length] == 0)
       {
         return;
@@ -777,7 +774,7 @@ enum ViewType
         return;
       }
       
-      NSUInteger len = [row.coloumns.dataStr length];
+      NSUInteger len = [row.columns.dataStr length];
       
       [aCell setFormatter:len > 16
        ? [MVRightFormatter leftAlignedFormatterWithLength:len] 
@@ -819,7 +816,7 @@ enum ViewType
     }
       
     NSUInteger colIndex = [[aTableView tableColumns] indexOfObject:aTableColumn];
-    NSString * cellContent = [row coloumnAtIndex:colIndex];
+    NSString * cellContent = [row columnAtIndex:colIndex];
     
     // try to find C,C++ symbol prologue
     NSUInteger start = [cellContent rangeOfString:@"_Z"].location;
